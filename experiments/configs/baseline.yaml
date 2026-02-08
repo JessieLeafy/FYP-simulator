@@ -1,0 +1,30 @@
+agent_type: rule_based
+steps: 30
+buyers_per_step: 50
+sellers_per_step: 50
+seed: 42
+
+market:
+  buyer_value_min: 50.0
+  buyer_value_max: 150.0
+  seller_cost_min: 30.0
+  seller_cost_max: 120.0
+  buyer_budget_min: 80.0
+  buyer_budget_max: 200.0
+  seller_margin_min: 0.05
+  seller_margin_max: 0.30
+  buyer_patience_min: 3
+  buyer_patience_max: 10
+  seller_patience_min: 3
+  seller_patience_max: 10
+  item_ref_price_min: 40.0
+  item_ref_price_max: 130.0
+  num_item_types: 5
+
+negotiation:
+  max_rounds: 10
+  min_price: 1.0
+  max_price: 500.0
+
+shock:
+  enabled: false

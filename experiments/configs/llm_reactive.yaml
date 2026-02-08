@@ -1,0 +1,32 @@
+agent_type: llm_reactive
+steps: 10
+buyers_per_step: 10
+sellers_per_step: 10
+seed: 42
+
+llm:
+  model: qwen2.5:3b
+  temperature: 0.2
+  max_tokens: 256
+  timeout_sec: 30.0
+  max_retries: 3
+  debug: false
+
+market:
+  buyer_value_min: 50.0
+  buyer_value_max: 150.0
+  seller_cost_min: 30.0
+  seller_cost_max: 120.0
+  buyer_budget_min: 80.0
+  buyer_budget_max: 200.0
+  seller_margin_min: 0.05
+  seller_margin_max: 0.30
+  num_item_types: 5
+
+negotiation:
+  max_rounds: 10
+  min_price: 1.0
+  max_price: 500.0
+
+shock:
+  enabled: false
