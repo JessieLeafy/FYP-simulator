@@ -1,28 +1,5 @@
 """JSON schemas and format instructions for LLM agent outputs."""
 
-NEGOTIATION_ACTION_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "action": {
-            "type": "string",
-            "enum": ["offer", "counter", "accept", "reject"],
-        },
-        "offer_price": {
-            "type": ["number", "null"],
-            "description": "Price offered. Must be null for accept/reject.",
-        },
-        "message_public": {
-            "type": "string",
-            "description": "Message visible to the opponent.",
-        },
-        "rationale_private": {
-            "type": "string",
-            "description": "Private reasoning (not shared with opponent).",
-        },
-    },
-    "required": ["action", "offer_price", "message_public", "rationale_private"],
-}
-
 SCHEMA_DESCRIPTION = """\
 You MUST respond with ONLY a JSON object (no markdown, no extra text) matching this schema:
 {

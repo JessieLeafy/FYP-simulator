@@ -4,7 +4,7 @@ import os
 import shutil
 import unittest
 
-from src.core.config import SimulationConfig
+from src.core.config import FixedScenarioConfig, SimulationConfig
 from src.core.rng import SeededRNG
 from src.market.simulator import MarketSimulator
 
@@ -101,6 +101,98 @@ class TestSmallRun(unittest.TestCase):
         run_a = _run(99)
         run_b = _run(99)
         self.assertEqual(run_a, run_b)
+
+    def test_fixed_single_run(self):
+        """Fixed single-value scenario completes and summary includes metadata."""
+        fixed = FixedScenarioConfig(
+            buyer_value=120.0, buyer_budget=130.0, buyer_patience=5,
+            seller_cost=80.0, seller_target_margin=0.15, seller_patience=5,
+            item_reference_price=100.0,
+        )
+        cfg = SimulationConfig(
+            agent_type="rule_based",
+            scenario_mode="fixed",
+            steps=2,
+            buyers_per_step=3,
+            sellers_per_step=3,
+            seed=42,
+            output_dir=self.output_dir,
+            fixed=fixed,
+        )
+        rng = SeededRNG(cfg.seed)
+        sim = MarketSimulator(cfg, rng)
+        results = sim.run()
+
+        self.assertGreater(len(results), 0)
+
+        # all buyers should have the fixed value
+        for r in results:
+            self.assertEqual(r.buyer_value, 120.0)
+            self.assertEqual(r.seller_cost, 80.0)
+
+        # summary.json should contain scenario metadata
+        summary_path = os.path.join(sim.run_dir, "summary.json")
+        with open(summary_path) as f:
+            summary = json.load(f)
+
+        self.assertEqual(summary["scenario_mode"], "fixed")
+        self.assertIn("fixed_params", summary)
+        self.assertEqual(summary["fixed_params"]["buyer_value"], 120.0)
+        self.assertEqual(summary["fixed_params"]["seller_cost"], 80.0)
+
+    def test_fixed_enumerated_run(self):
+        """Enumerated fixed scenario cycles through values correctly."""
+        fixed = FixedScenarioConfig(
+            buyer_value=[90, 100, 110],
+            buyer_budget=140.0,
+            seller_cost=[60, 70],
+            seller_target_margin=0.15,
+            item_reference_price=100.0,
+            selection="cycle",
+        )
+        cfg = SimulationConfig(
+            agent_type="rule_based",
+            scenario_mode="fixed",
+            steps=1,
+            buyers_per_step=6,
+            sellers_per_step=6,
+            seed=42,
+            output_dir=self.output_dir,
+            fixed=fixed,
+        )
+        rng = SeededRNG(cfg.seed)
+        sim = MarketSimulator(cfg, rng)
+        results = sim.run()
+
+        self.assertEqual(len(results), 6)
+
+        summary_path = os.path.join(sim.run_dir, "summary.json")
+        with open(summary_path) as f:
+            summary = json.load(f)
+
+        self.assertEqual(summary["scenario_mode"], "fixed")
+        self.assertEqual(summary["fixed_params"]["buyer_value"], [90, 100, 110])
+        self.assertEqual(summary["fixed_params"]["seller_cost"], [60, 70])
+
+    def test_distribution_mode_backward_compat(self):
+        """Existing distribution configs still work and include scenario_mode."""
+        cfg = SimulationConfig(
+            agent_type="rule_based",
+            steps=1,
+            buyers_per_step=3,
+            sellers_per_step=3,
+            seed=42,
+            output_dir=self.output_dir,
+        )
+        rng = SeededRNG(cfg.seed)
+        sim = MarketSimulator(cfg, rng)
+        sim.run()
+
+        with open(os.path.join(sim.run_dir, "summary.json")) as f:
+            summary = json.load(f)
+
+        self.assertEqual(summary["scenario_mode"], "distribution")
+        self.assertNotIn("fixed_params", summary)
 
 
 if __name__ == "__main__":

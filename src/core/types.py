@@ -83,6 +83,39 @@ class NegotiationResult:
 
 
 @dataclass
+class Offer:
+    """A price offer within a negotiation."""
+    price: float
+    round_number: int
+    proposer_role: AgentRole
+
+
+@dataclass
+class Outcome:
+    """Settlement outcome of a negotiation session (non-LLM computed)."""
+    status: str                              # "deal" | "no_deal" | "timeout"
+    agreed_price: Optional[float] = None
+    rounds: int = 0
+    buyer_surplus: float = 0.0
+    seller_surplus: float = 0.0
+    welfare: float = 0.0
+
+
+@dataclass
+class MarketTickStats:
+    """Aggregate statistics for one market tick."""
+    tick: int
+    num_sessions: int
+    deals_made: int
+    fail_rate: float
+    mean_price: float
+    price_std: float
+    liquidity: float                         # deals / sessions
+    buyer_surplus_mean: float
+    seller_surplus_mean: float
+
+
+@dataclass
 class AgentContext:
     """Information visible to an agent when making a decision."""
     item: Item

@@ -4,7 +4,7 @@ from __future__ import annotations
 import statistics
 from typing import Any
 
-from src.core.types import NegotiationResult, TerminationReason
+from src.core.types import MarketTickStats, NegotiationResult, TerminationReason
 
 
 def compute_metrics(results: list[NegotiationResult]) -> dict[str, Any]:
@@ -74,6 +74,41 @@ def compute_metrics(results: list[NegotiationResult]) -> dict[str, Any]:
         "timeouts": timeouts,
         "total_risk_events": len(all_risk),
     }
+
+
+def compute_tick_stats(tick: int, results: list[NegotiationResult]) -> MarketTickStats:
+    """Compute aggregate statistics for a single market tick."""
+    total = len(results)
+    if total == 0:
+        return MarketTickStats(
+            tick=tick, num_sessions=0, deals_made=0, fail_rate=0,
+            mean_price=0, price_std=0, liquidity=0,
+            buyer_surplus_mean=0, seller_surplus_mean=0,
+        )
+
+    deals = [r for r in results if r.deal_made]
+    deal_count = len(deals)
+    prices = [r.deal_price for r in deals if r.deal_price is not None]
+
+    return MarketTickStats(
+        tick=tick,
+        num_sessions=total,
+        deals_made=deal_count,
+        fail_rate=round((total - deal_count) / total, 4),
+        mean_price=round(statistics.mean(prices), 2) if prices else 0,
+        price_std=(
+            round(statistics.stdev(prices), 2) if len(prices) > 1 else 0
+        ),
+        liquidity=round(deal_count / total, 4),
+        buyer_surplus_mean=(
+            round(statistics.mean([r.buyer_surplus for r in deals]), 2)
+            if deals else 0
+        ),
+        seller_surplus_mean=(
+            round(statistics.mean([r.seller_surplus for r in deals]), 2)
+            if deals else 0
+        ),
+    )
 
 
 def _empty_metrics() -> dict[str, Any]:

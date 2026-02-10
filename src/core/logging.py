@@ -64,6 +64,22 @@ class EventLogger:
         record["event"] = "risk"
         self._file.write(json.dumps(record) + "\n")
 
+    def log_tick_stats(self, stats: Any) -> None:
+        """Write a tick_end event with market-level aggregate stats."""
+        event = {
+            "event": "tick_end",
+            "tick": stats.tick,
+            "num_sessions": stats.num_sessions,
+            "deals_made": stats.deals_made,
+            "fail_rate": stats.fail_rate,
+            "mean_price": stats.mean_price,
+            "price_std": stats.price_std,
+            "liquidity": stats.liquidity,
+            "buyer_surplus_mean": stats.buyer_surplus_mean,
+            "seller_surplus_mean": stats.seller_surplus_mean,
+        }
+        self._file.write(json.dumps(event) + "\n")
+
     def close(self) -> None:
         self._file.flush()
         self._file.close()

@@ -1,18 +1,13 @@
 """LLM agent with lightweight episodic memory."""
 from __future__ import annotations
 
-import logging
 from typing import Optional
 
 from src.agents.base import BaseAgent
-from src.agents.llm_reactive import _fallback_action, _to_action
+from src.agents.llm_utils import call_llm_and_parse
 from src.core.types import AgentContext, NegotiationAction, NegotiationResult
 from src.llm.backend import OllamaLLMBackend
 from src.llm.prompts import build_deliberative_prompt, build_memory_context
-from src.llm.schemas import FORMAT_ERROR_PROMPT
-from src.negotiation.parser import extract_json, validate_action_json
-
-logger = logging.getLogger(__name__)
 
 
 class MemoryStore:
@@ -73,7 +68,7 @@ class MemoryAgent(BaseAgent):
         prompt = (
             (memory_text + "\n" + base_prompt) if memory_text else base_prompt
         )
-        return self._call_and_parse(prompt, ctx)
+        return call_llm_and_parse(self._backend, prompt, ctx)
 
     def record_outcome(self, result: NegotiationResult) -> None:
         """Store a negotiation summary for future reference."""
@@ -94,31 +89,3 @@ class MemoryAgent(BaseAgent):
             "rounds": result.rounds_taken,
             "opponent_style": style,
         })
-
-    # ── internal ─────────────────────────────────────────────────────────
-
-    def _call_and_parse(
-        self, prompt: str, ctx: AgentContext
-    ) -> NegotiationAction:
-        raw = self._backend.generate(prompt)
-        parsed = extract_json(raw)
-
-        if parsed is not None:
-            valid, reason = validate_action_json(parsed)
-            if valid:
-                return _to_action(parsed)
-            logger.warning("Memory agent JSON validation failed: %s", reason)
-        else:
-            logger.warning("Memory agent: could not extract JSON")
-
-        retry_prompt = prompt + "\n\n" + FORMAT_ERROR_PROMPT
-        raw = self._backend.generate(retry_prompt)
-        parsed = extract_json(raw)
-
-        if parsed is not None:
-            valid, reason = validate_action_json(parsed)
-            if valid:
-                return _to_action(parsed)
-
-        logger.error("Memory agent: LLM failed after retry – using fallback")
-        return _fallback_action(ctx)

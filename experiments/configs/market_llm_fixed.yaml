@@ -1,0 +1,33 @@
+scenario_mode: fixed
+agent_type: llm_reactive
+mode: market
+steps: 3
+buyers_per_step: 3
+sellers_per_step: 3
+seed: 42
+
+llm:
+  model: qwen2.5:3b
+  temperature: 0.2
+  max_tokens: 256
+  timeout_sec: 60.0
+  max_retries: 3
+  debug: false
+
+fixed:
+  buyer_value: 120.0
+  buyer_budget: 130.0
+  buyer_patience: 5
+  seller_cost: 80.0
+  seller_target_margin: 0.15
+  seller_patience: 5
+  item_reference_price: 100.0
+  selection: cycle
+
+negotiation:
+  max_rounds: 6
+  min_price: 1.0
+  max_price: 500.0
+
+shock:
+  enabled: false

@@ -59,6 +59,23 @@ class ShockConfig:
 
 
 @dataclass
+class FixedScenarioConfig:
+    """Parameters for fixed-value scenario mode.
+
+    Each field accepts a single number or a list of numbers.
+    Lists are drawn from via ``selection`` strategy ("cycle" or "random").
+    """
+    buyer_value: Any = None            # float | list[float] | None
+    buyer_budget: Any = None
+    buyer_patience: Any = None         # int | list[int] | None
+    seller_cost: Any = None
+    seller_target_margin: Any = None
+    seller_patience: Any = None
+    item_reference_price: Any = None   # float | list[float] | None
+    selection: str = "cycle"           # "cycle" | "random"
+
+
+@dataclass
 class SimulationConfig:
     agent_type: str = "rule_based"
     buyer_agent_type: Optional[str] = None
@@ -68,10 +85,14 @@ class SimulationConfig:
     sellers_per_step: int = 50
     seed: int = 42
     output_dir: str = "outputs/runs"
+    scenario_mode: str = "distribution"   # "distribution" | "fixed"
+    mode: str = "session"                 # "session" | "market"
+    matching: str = "random"              # "random" (extensible)
     llm: LLMConfig = field(default_factory=LLMConfig)
     market: MarketConfig = field(default_factory=MarketConfig)
     negotiation: NegotiationConfig = field(default_factory=NegotiationConfig)
     shock: ShockConfig = field(default_factory=ShockConfig)
+    fixed: FixedScenarioConfig = field(default_factory=FixedScenarioConfig)
     memory_k: int = 5
 
 
@@ -94,12 +115,14 @@ _NESTED = {
     "market": MarketConfig,
     "negotiation": NegotiationConfig,
     "shock": ShockConfig,
+    "fixed": FixedScenarioConfig,
 }
 
 _TOP_SCALARS = (
     "agent_type", "buyer_agent_type", "seller_agent_type",
     "steps", "buyers_per_step", "sellers_per_step",
-    "seed", "output_dir", "memory_k",
+    "seed", "output_dir", "memory_k", "scenario_mode",
+    "mode", "matching",
 )
 
 
@@ -115,3 +138,24 @@ def _dict_to_config(data: dict[str, Any]) -> SimulationConfig:
                 if hasattr(obj, k):
                     setattr(obj, k, v)
     return cfg
+
+
+def resolve_fixed_params(cfg: SimulationConfig) -> dict[str, Any]:
+    """Return a JSON-serialisable dict of the resolved fixed-mode parameters.
+
+    For enumerated (list) values the raw lists are included so callers
+    can see the full set; individual draws are logged per-negotiation.
+    """
+    if cfg.scenario_mode != "fixed":
+        return {}
+    f = cfg.fixed
+    resolved: dict[str, Any] = {"selection": f.selection}
+    for key in (
+        "buyer_value", "buyer_budget", "buyer_patience",
+        "seller_cost", "seller_target_margin", "seller_patience",
+        "item_reference_price",
+    ):
+        val = getattr(f, key)
+        if val is not None:
+            resolved[key] = val
+    return resolved

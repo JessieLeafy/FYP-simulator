@@ -1,0 +1,38 @@
+scenario_mode: distribution
+agent_type: llm_reactive
+mode: market
+steps: 3
+buyers_per_step: 3
+sellers_per_step: 3
+seed: 42
+
+llm:
+  model: qwen2.5:3b
+  temperature: 0.2
+  max_tokens: 256
+  timeout_sec: 60.0
+  max_retries: 3
+  debug: false
+
+market:
+  buyer_value_min: 100.0
+  buyer_value_max: 150.0
+  seller_cost_min: 60.0
+  seller_cost_max: 100.0
+  buyer_budget_min: 120.0
+  buyer_budget_max: 160.0
+  seller_margin_min: 0.10
+  seller_margin_max: 0.25
+  buyer_patience_min: 4
+  buyer_patience_max: 6
+  seller_patience_min: 4
+  seller_patience_max: 6
+  num_item_types: 3
+
+negotiation:
+  max_rounds: 6
+  min_price: 1.0
+  max_price: 500.0
+
+shock:
+  enabled: false
