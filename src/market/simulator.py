@@ -188,6 +188,7 @@ class MarketSimulator:
 
         # resolve fixed config (None when in distribution mode)
         fixed_cfg = cfg.fixed if cfg.scenario_mode == "fixed" else None
+        use_stable_ids = cfg.matching == "round_robin"
 
         for step in range(cfg.steps):
             step_rng = self.rng.fork()
@@ -195,9 +196,11 @@ class MarketSimulator:
 
             buyers = generate_buyers(
                 step_rng, cfg.buyers_per_step, step, cfg.market, fixed_cfg,
+                stable_ids=use_stable_ids,
             )
             sellers = generate_sellers(
                 step_rng, cfg.sellers_per_step, step, cfg.market, fixed_cfg,
+                stable_ids=use_stable_ids,
             )
 
             buyers, sellers = apply_shocks(

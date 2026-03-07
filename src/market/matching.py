@@ -81,6 +81,7 @@ def generate_buyers(
     step: int,
     cfg: MarketConfig,
     fixed: Optional[FixedScenarioConfig] = None,
+    stable_ids: bool = False,
 ) -> list[BuyerState]:
     sel = fixed.selection if fixed else "cycle"
     value_src = _src(
@@ -101,7 +102,7 @@ def generate_buyers(
     for i in range(count):
         buyers.append(
             BuyerState(
-                buyer_id=f"buyer_t{step}_{i:03d}",
+                buyer_id=f"buyer_{i:03d}" if stable_ids else f"buyer_t{step}_{i:03d}",
                 value=value_src.draw(rng),
                 budget=budget_src.draw(rng),
                 patience=patience_src.draw(rng),
@@ -116,6 +117,7 @@ def generate_sellers(
     step: int,
     cfg: MarketConfig,
     fixed: Optional[FixedScenarioConfig] = None,
+    stable_ids: bool = False,
 ) -> list[SellerState]:
     sel = fixed.selection if fixed else "cycle"
     cost_src = _src(
@@ -136,7 +138,7 @@ def generate_sellers(
     for i in range(count):
         sellers.append(
             SellerState(
-                seller_id=f"seller_t{step}_{i:03d}",
+                seller_id=f"seller_{i:03d}" if stable_ids else f"seller_t{step}_{i:03d}",
                 cost=cost_src.draw(rng),
                 target_margin=round(margin_src.draw(rng), 4),
                 patience=patience_src.draw(rng),

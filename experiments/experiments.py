@@ -500,7 +500,7 @@ def run_reputation(
         else:
             conditions = {
                 "no_memory": {
-                    "agent_type": "llm_reactive",
+                    "agent_type": "llm_deliberative",
                     "memory_per_agent": False,
                 },
                 "reputation": {
