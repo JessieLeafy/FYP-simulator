@@ -143,6 +143,49 @@ def write_deadline_csv(
     return path
 
 
+def write_reputation_csv(
+    rows: list[dict[str, Any]], run_dir: str,
+) -> str:
+    """Write per-session reputation experiment data.
+
+    Expected row keys: condition, seed, tick, session_id, buyer_id,
+    seller_id, deal_made, deal_price, rounds_taken, buyer_surplus,
+    seller_surplus.
+    """
+    fields = [
+        "condition", "seed", "tick", "session_id", "buyer_id", "seller_id",
+        "deal_made", "deal_price", "rounds_taken", "buyer_surplus",
+        "seller_surplus",
+    ]
+    path = os.path.join(run_dir, "reputation_results.csv")
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+    return path
+
+
+def write_reputation_tick_csv(
+    rows: list[dict[str, Any]], run_dir: str,
+) -> str:
+    """Write per-tick reputation experiment data.
+
+    Expected row keys: condition, seed, tick, num_sessions, deals_made,
+    liquidity, mean_price, buyer_surplus_mean, seller_surplus_mean.
+    """
+    fields = [
+        "condition", "seed", "tick", "num_sessions", "deals_made",
+        "liquidity", "mean_price", "buyer_surplus_mean",
+        "seller_surplus_mean",
+    ]
+    path = os.path.join(run_dir, "reputation_tick_stats.csv")
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+    return path
+
+
 def write_experiment_summary(
     data: dict[str, Any], run_dir: str,
 ) -> str:

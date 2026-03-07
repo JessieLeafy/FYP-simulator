@@ -26,6 +26,8 @@ from src.evaluation.reports import (
     write_concession_csv,
     write_deadline_csv,
     write_experiment_summary,
+    write_reputation_csv,
+    write_reputation_tick_csv,
     write_tick_stats_csv,
 )
 from src.evaluation.stats import pearson_correlation, simple_linear_regression
@@ -458,6 +460,164 @@ def run_shock_response(
 
 
 # ═══════════════════════════════════════════════════════════════════════
+#  F) Reputation and Memory in Repeated Negotiation
+# ═══════════════════════════════════════════════════════════════════════
+
+def run_reputation(
+    base_cfg: SimulationConfig,
+    output_base: str = "outputs/experiments",
+    seeds: list[int] | None = None,
+    conditions: dict[str, dict[str, Any]] | None = None,
+) -> str:
+    """Run reputation & memory experiment.
+
+    Compares two conditions across repeated interactions:
+      - no_memory: llm_reactive agents (fresh each session)
+      - reputation: ReputationAgent with per-agent memory + opponent
+        reputation tracking
+
+    Both conditions use round-robin matching (same buyer-seller pairs
+    meet across ticks) and gate_enabled=False so that memory/reputation
+    can influence behaviour.
+
+    When *base_cfg.agent_type* is ``rule_based`` the default conditions
+    are adjusted so both arms use rule_based agents (useful for smoke
+    testing without an LLM backend).
+
+    Returns:
+        Path to experiment run directory.
+    """
+    if seeds is None:
+        seeds = [42]
+
+    if conditions is None:
+        if base_cfg.agent_type == "rule_based":
+            # smoke-test mode: both conditions use rule_based
+            conditions = {
+                "no_memory": {"agent_type": "rule_based", "memory_per_agent": False},
+                "reputation": {"agent_type": "rule_based", "memory_per_agent": False},
+            }
+        else:
+            conditions = {
+                "no_memory": {
+                    "agent_type": "llm_reactive",
+                    "memory_per_agent": False,
+                },
+                "reputation": {
+                    "agent_type": "reputation",
+                    "memory_per_agent": True,
+                },
+            }
+
+    run_dir = _make_run_dir(output_base, "reputation")
+    all_result_rows: list[dict[str, Any]] = []
+    all_tick_rows: list[dict[str, Any]] = []
+    condition_agg: dict[str, dict[str, Any]] = {}
+
+    for cond_name, overrides in conditions.items():
+        cond_deals = 0
+        cond_total = 0
+        cond_prices: list[float] = []
+        cond_buyer_surplus: list[float] = []
+        cond_seller_surplus: list[float] = []
+        cond_rounds: list[int] = []
+
+        for seed in seeds:
+            cfg = copy.deepcopy(base_cfg)
+            cfg.seed = seed
+            cfg.mode = "market"
+            cfg.matching = "round_robin"
+            cfg.negotiation.gate_enabled = False
+            cfg.output_dir = os.path.join(run_dir, "runs")
+
+            for key, val in overrides.items():
+                setattr(cfg, key, val)
+
+            sim = _run_simulation(cfg)
+
+            # collect per-result rows
+            for result in sim.results:
+                cond_total += 1
+                if result.deal_made:
+                    cond_deals += 1
+                    cond_prices.append(result.deal_price)
+                    cond_buyer_surplus.append(result.buyer_surplus)
+                    cond_seller_surplus.append(result.seller_surplus)
+                cond_rounds.append(result.rounds_taken)
+
+                all_result_rows.append({
+                    "condition": cond_name,
+                    "seed": seed,
+                    "tick": result.time_step,
+                    "session_id": f"{cond_name}_s{seed}_t{result.time_step}_{result.buyer_id}_{result.seller_id}",
+                    "buyer_id": result.buyer_id,
+                    "seller_id": result.seller_id,
+                    "deal_made": result.deal_made,
+                    "deal_price": result.deal_price,
+                    "rounds_taken": result.rounds_taken,
+                    "buyer_surplus": result.buyer_surplus,
+                    "seller_surplus": result.seller_surplus,
+                })
+
+            # collect per-tick rows
+            for ts in sim.tick_stats:
+                all_tick_rows.append({
+                    "condition": cond_name,
+                    "seed": seed,
+                    "tick": ts.tick,
+                    "num_sessions": ts.num_sessions,
+                    "deals_made": ts.deals_made,
+                    "liquidity": ts.liquidity,
+                    "mean_price": ts.mean_price,
+                    "buyer_surplus_mean": ts.buyer_surplus_mean,
+                    "seller_surplus_mean": ts.seller_surplus_mean,
+                })
+
+        condition_agg[cond_name] = {
+            "total_sessions": cond_total,
+            "deals": cond_deals,
+            "deal_rate": round(cond_deals / cond_total, 4) if cond_total else 0,
+            "mean_price": (
+                round(sum(cond_prices) / len(cond_prices), 2)
+                if cond_prices else 0
+            ),
+            "mean_buyer_surplus": (
+                round(sum(cond_buyer_surplus) / len(cond_buyer_surplus), 2)
+                if cond_buyer_surplus else 0
+            ),
+            "mean_seller_surplus": (
+                round(sum(cond_seller_surplus) / len(cond_seller_surplus), 2)
+                if cond_seller_surplus else 0
+            ),
+            "mean_rounds": (
+                round(sum(cond_rounds) / len(cond_rounds), 2)
+                if cond_rounds else 0
+            ),
+        }
+
+    # write CSVs
+    write_reputation_csv(all_result_rows, run_dir)
+    write_reputation_tick_csv(all_tick_rows, run_dir)
+
+    summary = {
+        "experiment": "reputation",
+        "research_question": (
+            "Does accumulated experience (memory of past interactions with "
+            "specific opponents) affect LLM agent negotiation strategy in "
+            "repeated interactions?"
+        ),
+        "conditions": list(conditions.keys()),
+        "seeds": seeds,
+        "total_result_rows": len(all_result_rows),
+        "total_tick_rows": len(all_tick_rows),
+        "condition_stats": condition_agg,
+        "git_hash": _git_hash(),
+    }
+    write_experiment_summary(summary, run_dir)
+    return run_dir
+
+
+# ═══════════════════════════════════════════════════════════════════════
 #  Dispatcher
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -467,6 +627,7 @@ EXPERIMENT_REGISTRY = {
     "deadline": run_deadline,
     "market_dynamics": run_market_dynamics,
     "shock_response": run_shock_response,
+    "reputation": run_reputation,
 }
 
 

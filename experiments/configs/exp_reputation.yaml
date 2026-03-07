@@ -1,0 +1,47 @@
+# Experiment F: Reputation and Memory in Repeated Negotiation
+# Does accumulated experience (memory of past interactions with specific
+# opponents) affect LLM agent negotiation strategy in repeated interactions?
+#
+# Conditions (set in experiments.py):
+#   no_memory   — llm_reactive (fresh each session)
+#   reputation  — reputation (per-agent memory + opponent reputation tracking)
+#
+# Both conditions use gate_enabled: false so memory/reputation can
+# influence behaviour, and round_robin matching for repeated pairings.
+agent_type: llm_reactive
+mode: market
+steps: 20
+buyers_per_step: 5
+sellers_per_step: 5
+seed: 42
+scenario_mode: fixed
+matching: round_robin
+memory_per_agent: true
+memory_k: 10
+
+llm:
+  model: llama3.2:3b
+  temperature: 0.2
+  max_tokens: 256
+  timeout_sec: 60.0
+
+fixed:
+  buyer_value: 120.0
+  buyer_budget: 130.0
+  seller_cost: 80.0
+  seller_target_margin: 0.15
+  item_reference_price: 100.0
+
+negotiation:
+  max_rounds: 10
+  min_price: 1.0
+  max_price: 500.0
+  gate_enabled: false
+
+prompt:
+  include_deadline_salience: true
+  include_objective_equations: true
+  include_history_summary: true
+
+shock:
+  enabled: false
