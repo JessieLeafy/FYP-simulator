@@ -286,6 +286,34 @@ _TONE_HINTS = {
 
 
 # ═══════════════════════════════════════════════════════════════════════
+#  Communication strategy blocks (Experiment G)
+# ═══════════════════════════════════════════════════════════════════════
+
+_COMMUNICATION_STRATEGIES = {
+    "neutral": "",
+    "assertive": (
+        "COMMUNICATION STRATEGY: Be assertive and firm in your public "
+        "message. State your position clearly. Emphasise your constraints "
+        "and signal that you will not concede easily. Do not reveal "
+        "weakness or eagerness to settle."
+    ),
+    "collaborative": (
+        "COMMUNICATION STRATEGY: Be cooperative and friendly in your "
+        "public message. Signal willingness to find a mutually beneficial "
+        "outcome. Acknowledge the other party's interests. Suggest "
+        "compromises when possible."
+    ),
+    "strategic": (
+        "COMMUNICATION STRATEGY: Craft your public message to maximise "
+        "your advantage. You may exaggerate how close you are to your "
+        "limit. Do NOT reveal your true constraints or reservation price. "
+        "Use the message to influence the opponent's expectations about "
+        "what you will accept."
+    ),
+}
+
+
+# ═══════════════════════════════════════════════════════════════════════
 #  Core prompt builders
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -318,12 +346,14 @@ def build_reactive_prompt(
     include_summary = True
     history_k = 6
     tone = "neutral"
+    comm_strategy = "neutral"
     if prompt_cfg is not None:
         include_obj = prompt_cfg.include_objective_equations
         include_deadline = prompt_cfg.include_deadline_salience
         include_summary = prompt_cfg.include_history_summary
         history_k = prompt_cfg.history_k
         tone = prompt_cfg.message_tone
+        comm_strategy = prompt_cfg.communication_strategy
 
     role = ctx.role.value
     is_buyer = ctx.role == AgentRole.BUYER
@@ -392,6 +422,12 @@ def build_reactive_prompt(
         parts.append("")
         parts.append(tone_hint)
 
+    # 6b. Communication strategy (Experiment G)
+    comm_hint = _COMMUNICATION_STRATEGIES.get(comm_strategy, "")
+    if comm_hint:
+        parts.append("")
+        parts.append(comm_hint)
+
     # 7. Schema + few-shot examples (Req 4b) + final instruction
     parts.append("")
     parts.append(SCHEMA_DESCRIPTION)
@@ -434,12 +470,14 @@ def build_deliberative_prompt(
     include_summary = True
     history_k = 6
     tone = "neutral"
+    comm_strategy = "neutral"
     if prompt_cfg is not None:
         include_obj = prompt_cfg.include_objective_equations
         include_deadline = prompt_cfg.include_deadline_salience
         include_summary = prompt_cfg.include_history_summary
         history_k = prompt_cfg.history_k
         tone = prompt_cfg.message_tone
+        comm_strategy = prompt_cfg.communication_strategy
 
     role = ctx.role.value
     is_buyer = ctx.role == AgentRole.BUYER
@@ -519,6 +557,12 @@ def build_deliberative_prompt(
         parts.append("")
         parts.append(tone_hint)
 
+    # 7b. Communication strategy (Experiment G)
+    comm_hint = _COMMUNICATION_STRATEGIES.get(comm_strategy, "")
+    if comm_hint:
+        parts.append("")
+        parts.append(comm_hint)
+
     # 8. Schema + few-shot examples (Req 4b) + final instruction
     parts.append("")
     parts.append(SCHEMA_DESCRIPTION)
@@ -554,4 +598,37 @@ def build_memory_context(memories: list[dict]) -> str:
             f"Opponent style: {mem.get('opponent_style', 'unknown')}"
         )
     lines.append("")
+    return "\n".join(lines)
+
+
+def build_reputation_context(reputation: dict) -> str:
+    """Format opponent reputation data for prompt injection.
+
+    Args:
+        reputation: Dict with keys: opponent_id, interactions, deal_rate,
+            avg_deal_price, avg_rounds, style.
+
+    Returns:
+        Formatted reputation context string, or ``""`` if empty.
+    """
+    if not reputation:
+        return ""
+    oid = reputation.get("opponent_id", "unknown")
+    interactions = reputation.get("interactions", 0)
+    deal_rate = reputation.get("deal_rate", 0)
+    avg_price = reputation.get("avg_deal_price", 0)
+    avg_rounds = reputation.get("avg_rounds", 0)
+    style = reputation.get("style", "unknown")
+
+    lines = [
+        f"OPPONENT HISTORY (you have negotiated with {oid} before):",
+        f"  Past interactions: {interactions}",
+        f"  Deal rate: {deal_rate:.0%}",
+        f"  Average deal price: ${avg_price:.2f}",
+        f"  Average rounds to close: {avg_rounds:.1f}",
+        f"  Opponent style: {style}",
+        "",
+        "Use this information to calibrate your strategy.",
+        "",
+    ]
     return "\n".join(lines)

@@ -19,7 +19,13 @@ from src.evaluation.metrics import compute_metrics, compute_tick_stats
 from src.evaluation.reports import write_deals_csv, write_summary
 from src.llm.backend import OllamaLLMBackend
 from src.market.catalog import Catalog
-from src.market.matcher import Matcher, RandomMatcher
+from src.market.matcher import (
+    Matcher,
+    RandomMatcher,
+    RoundRobinMatcher,
+    SortedMatcher,
+    SurplusMaxMatcher,
+)
 from src.market.matching import generate_buyers, generate_sellers
 from src.market.shocks import apply_shocks
 from src.negotiation.session import NegotiationSession
@@ -65,18 +71,40 @@ class MarketSimulator:
         self.event_logger = EventLogger(self.run_dir)
 
         # matcher (pluggable via Matcher interface)
-        self.matcher: Matcher = RandomMatcher()
+        self.matcher: Matcher = self._create_matcher(config.matching)
 
         # lazy LLM backend
         self._backend: Optional[OllamaLLMBackend] = None
 
-        # shared memory stores (for memory agents)
+        # memory stores (for memory agents)
+        # When memory_per_agent is True, each agent gets its own store
+        # (created in _create_agent); shared stores are unused.
+        self._memory_per_agent = config.memory_per_agent
         self._buyer_memory = MemoryStore(k=config.memory_k)
         self._seller_memory = MemoryStore(k=config.memory_k)
+        self._agent_memories: dict[str, MemoryStore] = {}  # agent_id → store
 
         # collected results
         self.results: list[NegotiationResult] = []
         self.tick_stats: list[MarketTickStats] = []
+
+    # ── matcher creation ─────────────────────────────────────────────────
+
+    @staticmethod
+    def _create_matcher(name: str) -> Matcher:
+        """Instantiate a Matcher by config name."""
+        if name == "random":
+            return RandomMatcher()
+        if name == "surplus_max":
+            return SurplusMaxMatcher()
+        if name == "sorted":
+            return SortedMatcher()
+        if name == "round_robin":
+            return RoundRobinMatcher()
+        raise ValueError(
+            f"Unknown matching strategy: {name!r}. "
+            f"Available: random, surplus_max, sorted, round_robin"
+        )
 
     # ── agent creation ───────────────────────────────────────────────────
 
@@ -94,10 +122,12 @@ class MarketSimulator:
             )
         return self._backend
 
-    def _create_agent(self, agent_type: str, role: AgentRole):
+    def _create_agent(
+        self, agent_type: str, role: AgentRole, agent_id: str = "",
+    ):
         from src.agents.llm_deliberative import LLMDeliberativeAgent
         from src.agents.llm_reactive import LLMReactiveAgent
-        from src.agents.memory_agent import MemoryAgent
+        from src.agents.memory_agent import MemoryAgent, ReputationAgent
         from src.agents.rule_based import RuleBasedAgent
 
         pcfg = self.config.prompt
@@ -109,13 +139,42 @@ class MarketSimulator:
         if agent_type == "llm_deliberative":
             return LLMDeliberativeAgent(self._get_backend(), prompt_cfg=pcfg)
         if agent_type == "memory":
-            store = (
-                self._buyer_memory
-                if role == AgentRole.BUYER
-                else self._seller_memory
-            )
+            if self._memory_per_agent and agent_id:
+                # per-agent memory for reputation experiments
+                if agent_id not in self._agent_memories:
+                    self._agent_memories[agent_id] = MemoryStore(
+                        k=self.config.memory_k,
+                    )
+                store = self._agent_memories[agent_id]
+            else:
+                store = (
+                    self._buyer_memory
+                    if role == AgentRole.BUYER
+                    else self._seller_memory
+                )
             return MemoryAgent(
                 self._get_backend(), memory_store=store, prompt_cfg=pcfg,
+            )
+        if agent_type == "reputation":
+            # reputation agent always uses per-agent memory + reputation
+            mem_key = f"rep_mem_{agent_id}"
+            rep_key = f"rep_store_{agent_id}"
+            if mem_key not in self._agent_memories:
+                self._agent_memories[mem_key] = MemoryStore(
+                    k=self.config.memory_k,
+                )
+            # store ReputationStore objects alongside MemoryStores
+            if not hasattr(self, "_reputation_stores"):
+                self._reputation_stores: dict = {}
+            if rep_key not in self._reputation_stores:
+                from src.agents.memory_agent import ReputationStore
+                self._reputation_stores[rep_key] = ReputationStore()
+            return ReputationAgent(
+                self._get_backend(),
+                memory_store=self._agent_memories[mem_key],
+                reputation_store=self._reputation_stores[rep_key],
+                prompt_cfg=pcfg,
+                role=role,
             )
         raise ValueError(f"Unknown agent type: {agent_type}")
 
@@ -151,8 +210,18 @@ class MarketSimulator:
             )
 
             for buyer, seller, item in pairs:
-                buyer_agent = self._create_agent(buyer_type, AgentRole.BUYER)
-                seller_agent = self._create_agent(seller_type, AgentRole.SELLER)
+                buyer_agent = self._create_agent(
+                    buyer_type, AgentRole.BUYER, buyer.buyer_id,
+                )
+                seller_agent = self._create_agent(
+                    seller_type, AgentRole.SELLER, seller.seller_id,
+                )
+
+                # set opponent IDs for reputation agents
+                if hasattr(buyer_agent, "set_opponent"):
+                    buyer_agent.set_opponent(seller.seller_id)
+                if hasattr(seller_agent, "set_opponent"):
+                    seller_agent.set_opponent(buyer.buyer_id)
 
                 session = NegotiationSession(
                     buyer_agent=buyer_agent,
@@ -165,6 +234,7 @@ class MarketSimulator:
                     max_price=cfg.negotiation.max_price,
                     event_logger=self.event_logger,
                     time_step=step,
+                    gate_enabled=cfg.negotiation.gate_enabled,
                 )
                 result = session.run()
 

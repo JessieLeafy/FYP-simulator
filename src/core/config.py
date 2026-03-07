@@ -46,6 +46,7 @@ class NegotiationConfig:
     max_rounds: int = 10
     min_price: float = 1.0
     max_price: float = 500.0
+    gate_enabled: bool = True        # deterministic feasibility gate
 
 
 @dataclass
@@ -98,6 +99,7 @@ class PromptConfig:
     include_history_summary: bool = True
     history_k: int = 6
     message_tone: str = "neutral"              # "neutral" | "firm" | "friendly"
+    communication_strategy: str = "neutral"    # "neutral" | "assertive" | "collaborative" | "strategic"
 
 
 @dataclass
@@ -120,6 +122,7 @@ class SimulationConfig:
     fixed: FixedScenarioConfig = field(default_factory=FixedScenarioConfig)
     prompt: PromptConfig = field(default_factory=PromptConfig)
     memory_k: int = 5
+    memory_per_agent: bool = False         # per-agent memory stores (for reputation experiments)
 
 
 def load_config(path: str) -> SimulationConfig:
@@ -148,8 +151,8 @@ _NESTED = {
 _TOP_SCALARS = (
     "agent_type", "buyer_agent_type", "seller_agent_type",
     "steps", "buyers_per_step", "sellers_per_step",
-    "seed", "output_dir", "memory_k", "scenario_mode",
-    "mode", "matching",
+    "seed", "output_dir", "memory_k", "memory_per_agent",
+    "scenario_mode", "mode", "matching",
 )
 
 

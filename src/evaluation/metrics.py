@@ -111,6 +111,50 @@ def compute_tick_stats(tick: int, results: list[NegotiationResult]) -> MarketTic
     )
 
 
+def compute_allocative_efficiency(
+    results: list[NegotiationResult],
+) -> float:
+    """Compute allocative efficiency: realised welfare / theoretical max welfare.
+
+    Theoretical max welfare for each pair = max(buyer_value - seller_cost, 0).
+    Realised welfare for deals = buyer_surplus + seller_surplus (= value - cost).
+    For non-deals, realised welfare = 0.
+
+    Returns a value in [0, 1].  Returns 0.0 if theoretical max is 0.
+    """
+    theoretical_max = 0.0
+    realised = 0.0
+    for r in results:
+        max_surplus = max(r.buyer_value - r.seller_cost, 0.0)
+        theoretical_max += max_surplus
+        if r.deal_made:
+            realised += r.buyer_surplus + r.seller_surplus
+    if theoretical_max <= 0:
+        return 0.0
+    return round(realised / theoretical_max, 4)
+
+
+def compute_surplus_gini(surpluses: list[float]) -> float:
+    """Compute Gini coefficient of a list of surplus values.
+
+    Measures inequality in surplus distribution.  0 = perfect equality,
+    1 = maximum inequality.  Returns 0.0 for empty or single-element lists.
+    """
+    n = len(surpluses)
+    if n < 2:
+        return 0.0
+    s = sorted(surpluses)
+    total = sum(s)
+    if total == 0:
+        return 0.0
+    cumulative = 0.0
+    weighted_sum = 0.0
+    for i, val in enumerate(s):
+        cumulative += val
+        weighted_sum += (2 * (i + 1) - n - 1) * val
+    return round(abs(weighted_sum) / (n * total), 4)
+
+
 def _empty_metrics() -> dict[str, Any]:
     return {
         "total_negotiations": 0,

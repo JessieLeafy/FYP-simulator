@@ -77,6 +77,7 @@ class NegotiationSession:
         max_price: float = 500.0,
         event_logger: Optional[EventLogger] = None,
         time_step: int = 0,
+        gate_enabled: bool = True,
     ):
         self.buyer_agent = buyer_agent
         self.seller_agent = seller_agent
@@ -86,6 +87,7 @@ class NegotiationSession:
         self.max_rounds = max_rounds
         self.event_logger = event_logger
         self.time_step = time_step
+        self.gate_enabled = gate_enabled
 
         self.judge = ActionJudge(min_price, max_price)
 
@@ -156,7 +158,9 @@ class NegotiationSession:
             # If the standing offer is already acceptable, settle without
             # calling the agent.  This is the primary fix for weak LLMs
             # that fail to output "accept" when they should.
-            if feasible:
+            # Gate can be disabled via gate_enabled=False for experiments
+            # that need genuine multi-round LLM negotiation (F, G).
+            if self.gate_enabled and feasible:
                 action = NegotiationAction(
                     ActionType.ACCEPT,
                     None,
@@ -206,10 +210,11 @@ class NegotiationSession:
             # The pre-LLM gate should have caught all feasible cases above.
             # This override is a safety net in case a future code path
             # bypasses the gate (e.g., if the gate threshold is ever tightened).
+            # Skipped when gate is disabled to allow genuine LLM decisions.
             effective_action = action.action.value
             override_flag = False
             override_reason = ""
-            if action.action != ActionType.ACCEPT and offer_received is not None:
+            if self.gate_enabled and action.action != ActionType.ACCEPT and offer_received is not None:
                 f2, reason2 = is_offer_feasible(
                     role, offer_received, self.buyer, self.seller,
                 )

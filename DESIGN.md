@@ -512,13 +512,51 @@ python experiments/run.py --config experiments/configs/baseline.yaml \
 
 ## 11. TODO / Future Extensions
 
-| Priority | Extension | Notes |
-|----------|-----------|-------|
-| High | Order book / double auction matching | Implement `AuctionMatcher(Matcher)` |
-| High | Personality/style ablations | Add `style` field to agent profiles, inject into prompts |
-| Medium | Multi-issue negotiation | Extend `Offer` to carry `{issue: value}` dict |
-| Medium | Reputation system | Track deal history per agent ID across ticks |
-| Medium | Cross-run memory persistence | Serialise `MemoryStore` to disk between runs |
-| Low | Experiment tracking (MLflow/W&B) | Wrap `write_summary` with tracker API |
-| Low | Parallel session execution | Thread pool for independent sessions within a tick |
-| Low | Config validation | Warn on unknown YAML keys via `_dict_to_config` |
+| Priority | Extension | Status | Notes |
+|----------|-----------|--------|-------|
+| High | Order book / double auction matching | Partial | `SurplusMaxMatcher`, `SortedMatcher`, `RoundRobinMatcher` implemented; double auction deferred |
+| High | Personality/style ablations | Done | `PromptConfig.communication_strategy` + `_COMMUNICATION_STRATEGIES` dict in `prompts.py` |
+| Medium | Multi-issue negotiation | — | Extend `Offer` to carry `{issue: value}` dict |
+| Medium | Reputation system | Done | `ReputationStore` + `ReputationAgent` in `memory_agent.py`; opponent-indexed memory |
+| Medium | Cross-run memory persistence | — | Serialise `MemoryStore` to disk between runs |
+| Medium | Feasibility gate toggle | Done | `NegotiationConfig.gate_enabled`; session respects flag |
+| Medium | Allocative efficiency metric | Done | `compute_allocative_efficiency()`, `compute_surplus_gini()` in `metrics.py` |
+| Low | Experiment tracking (MLflow/W&B) | — | Wrap `write_summary` with tracker API |
+| Low | Parallel session execution | — | Thread pool for independent sessions within a tick |
+| Low | Config validation | — | Warn on unknown YAML keys via `_dict_to_config` |
+
+---
+
+## 12. Matching Strategies
+
+| Strategy | Class | Description |
+|----------|-------|-------------|
+| `random` | `RandomMatcher` | Random 1:1 pairing (baseline) |
+| `surplus_max` | `SurplusMaxMatcher` | Greedy max-ZOPA pairing (oracle upper bound) |
+| `sorted` | `SortedMatcher` | Pairs by descending value/cost (practical heuristic) |
+| `round_robin` | `RoundRobinMatcher` | Deterministic repeated pairings across ticks (reputation experiments) |
+
+Configured via `matching:` in YAML or `--matching` CLI flag.
+
+---
+
+## 13. Communication Strategies (Experiment G)
+
+| Strategy | Description |
+|----------|-------------|
+| `neutral` | No messaging instructions (default) |
+| `assertive` | Firm, confident tone; emphasise constraints |
+| `collaborative` | Cooperative, friendly; acknowledge opponent's interests |
+| `strategic` | Maximise advantage; may exaggerate or withhold true constraints |
+
+Configured via `prompt.communication_strategy` in YAML.
+
+---
+
+## 14. Reputation System (Experiment F)
+
+- `ReputationStore` tracks per-opponent deal history: deal rate, avg price, avg rounds, inferred style
+- `ReputationAgent` extends `MemoryAgent` with opponent-specific reputation context
+- `build_reputation_context()` formats reputation data for prompt injection
+- `RoundRobinMatcher` ensures repeated pairings for reputation to develop
+- `memory_per_agent: true` gives each agent its own `MemoryStore` (vs. shared role-level stores)
