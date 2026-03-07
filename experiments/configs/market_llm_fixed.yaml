@@ -7,7 +7,7 @@ sellers_per_step: 3
 seed: 42
 
 llm:
-  model: qwen2.5:3b
+  model: llama3.2:3b
   temperature: 0.2
   max_tokens: 256
   timeout_sec: 60.0

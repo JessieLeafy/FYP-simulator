@@ -37,10 +37,13 @@ class MarketSimulator:
         self.config = config
         self.rng = rng
 
-        # run directory
+        # run directory — use high-resolution timestamp + agent_type to avoid
+        # collisions when multiple conditions share the same seed and start
+        # within the same wall-clock second (e.g. fast rule_based runs).
         timestamp = time.strftime("%Y%m%d_%H%M%S")
+        agent_label = (config.buyer_agent_type or config.agent_type or "agent")[:12]
         self.run_dir = os.path.join(
-            config.output_dir, f"{timestamp}_s{config.seed}"
+            config.output_dir, f"{timestamp}_{agent_label}_s{config.seed}"
         )
         os.makedirs(self.run_dir, exist_ok=True)
 
@@ -97,19 +100,23 @@ class MarketSimulator:
         from src.agents.memory_agent import MemoryAgent
         from src.agents.rule_based import RuleBasedAgent
 
+        pcfg = self.config.prompt
+
         if agent_type == "rule_based":
             return RuleBasedAgent()
         if agent_type == "llm_reactive":
-            return LLMReactiveAgent(self._get_backend())
+            return LLMReactiveAgent(self._get_backend(), prompt_cfg=pcfg)
         if agent_type == "llm_deliberative":
-            return LLMDeliberativeAgent(self._get_backend())
+            return LLMDeliberativeAgent(self._get_backend(), prompt_cfg=pcfg)
         if agent_type == "memory":
             store = (
                 self._buyer_memory
                 if role == AgentRole.BUYER
                 else self._seller_memory
             )
-            return MemoryAgent(self._get_backend(), memory_store=store)
+            return MemoryAgent(
+                self._get_backend(), memory_store=store, prompt_cfg=pcfg,
+            )
         raise ValueError(f"Unknown agent type: {agent_type}")
 
     # ── main loop ────────────────────────────────────────────────────────

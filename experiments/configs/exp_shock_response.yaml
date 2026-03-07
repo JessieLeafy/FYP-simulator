@@ -1,0 +1,46 @@
+# Experiment: Shock Response
+# Market mode with demand/supply shocks enabled to observe
+# price adjustment and surplus redistribution.
+# Uses LLM reactive agents to study how LLMs adapt to shocks.
+agent_type: llm_reactive
+mode: market
+steps: 30
+buyers_per_step: 15
+sellers_per_step: 15
+seed: 42
+scenario_mode: distribution
+
+llm:
+  model: llama3.2:3b
+  temperature: 0.2
+  max_tokens: 256
+  timeout_sec: 30.0
+  max_retries: 3
+
+market:
+  buyer_value_min: 80.0
+  buyer_value_max: 150.0
+  seller_cost_min: 50.0
+  seller_cost_max: 120.0
+  buyer_budget_min: 100.0
+  buyer_budget_max: 200.0
+  seller_margin_min: 0.05
+  seller_margin_max: 0.25
+  num_item_types: 5
+
+negotiation:
+  max_rounds: 10
+  min_price: 1.0
+  max_price: 500.0
+
+shock:
+  enabled: true
+  demand_multiplier_min: 0.7
+  demand_multiplier_max: 1.3
+  supply_multiplier_min: 0.7
+  supply_multiplier_max: 1.3
+  shock_probability: 0.3
+
+prompt:
+  include_deadline_salience: true
+  include_objective_equations: true

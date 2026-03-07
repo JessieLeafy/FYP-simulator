@@ -23,6 +23,7 @@ class OllamaLLMBackend:
         timeout_sec: float = 30.0,
         max_retries: int = 3,
         debug: bool = False,
+        proxy: Optional[str] = None,
     ):
         self.model = model
         self.base_url = base_url.rstrip("/")
@@ -31,6 +32,24 @@ class OllamaLLMBackend:
         self.timeout_sec = timeout_sec
         self.max_retries = max_retries
         self.debug = debug
+        # Optional HTTP/HTTPS proxy string, e.g. "http://127.0.0.1:3128"
+        self.proxy = proxy
+        # Build a custom opener that respects the proxy if provided. Using
+        # an opener ensures urllib requests go through the proxy handler.
+        if self.proxy:
+            proxy_handler = urllib.request.ProxyHandler({
+                "http": self.proxy,
+                "https": self.proxy,
+            })
+            self._opener = urllib.request.build_opener(proxy_handler)
+        else:
+            # Explicitly bypass any system-level proxy (ALL_PROXY, HTTPS_PROXY,
+            # etc.) when no explicit proxy is configured.  Ollama typically runs
+            # on localhost; routing through a system proxy causes connection
+            # failures even though the server is reachable directly.
+            self._opener = urllib.request.build_opener(
+                urllib.request.ProxyHandler({})
+            )
         self._call_count = 0
 
     def generate(self, prompt: str, **overrides: Any) -> str:
@@ -71,7 +90,9 @@ class OllamaLLMBackend:
                     headers={"Content-Type": "application/json"},
                     method="POST",
                 )
-                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                # Use the configured opener so proxy settings (if any)
+                # are applied. The opener API mirrors urllib.request.
+                with self._opener.open(req, timeout=timeout) as resp:
                     if resp.status != 200:
                         raise RuntimeError(
                             f"Ollama returned HTTP {resp.status}"

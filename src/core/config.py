@@ -13,7 +13,7 @@ except ImportError:
 
 @dataclass
 class LLMConfig:
-    model: str = "qwen2.5:3b"
+    model: str = "llama3:latest"
     temperature: float = 0.2
     max_tokens: int = 256
     timeout_sec: float = 30.0
@@ -76,6 +76,31 @@ class FixedScenarioConfig:
 
 
 @dataclass
+class PromptConfig:
+    """Controls prompt construction for LLM agents.
+
+    Attributes:
+        prompt_style: ``reactive`` (single-shot) or ``deliberative``
+            (structured reasoning).
+        include_deadline_salience: inject explicit deadline-pressure
+            language when remaining rounds are low.
+        include_objective_equations: include formal surplus-maximisation
+            objective in the role prompt.
+        include_history_summary: include a compact transcript summary
+            instead of / in addition to raw history.
+        history_k: maximum number of recent turns to include in prompt.
+        message_tone: optional stylistic hint (``neutral``, ``firm``,
+            ``friendly``).  Injected only when non-empty.
+    """
+    prompt_style: str = "reactive"             # "reactive" | "deliberative"
+    include_deadline_salience: bool = True
+    include_objective_equations: bool = True
+    include_history_summary: bool = True
+    history_k: int = 6
+    message_tone: str = "neutral"              # "neutral" | "firm" | "friendly"
+
+
+@dataclass
 class SimulationConfig:
     agent_type: str = "rule_based"
     buyer_agent_type: Optional[str] = None
@@ -93,6 +118,7 @@ class SimulationConfig:
     negotiation: NegotiationConfig = field(default_factory=NegotiationConfig)
     shock: ShockConfig = field(default_factory=ShockConfig)
     fixed: FixedScenarioConfig = field(default_factory=FixedScenarioConfig)
+    prompt: PromptConfig = field(default_factory=PromptConfig)
     memory_k: int = 5
 
 
@@ -116,6 +142,7 @@ _NESTED = {
     "negotiation": NegotiationConfig,
     "shock": ShockConfig,
     "fixed": FixedScenarioConfig,
+    "prompt": PromptConfig,
 }
 
 _TOP_SCALARS = (

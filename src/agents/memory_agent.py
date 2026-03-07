@@ -1,13 +1,16 @@
 """LLM agent with lightweight episodic memory."""
 from __future__ import annotations
 
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from src.agents.base import BaseAgent
 from src.agents.llm_utils import call_llm_and_parse
 from src.core.types import AgentContext, NegotiationAction, NegotiationResult
 from src.llm.backend import OllamaLLMBackend
 from src.llm.prompts import build_deliberative_prompt, build_memory_context
+
+if TYPE_CHECKING:
+    from src.core.config import PromptConfig
 
 
 class MemoryStore:
@@ -52,9 +55,11 @@ class MemoryAgent(BaseAgent):
         backend: OllamaLLMBackend,
         memory_store: Optional[MemoryStore] = None,
         memory_k: int = 5,
+        prompt_cfg: Optional[PromptConfig] = None,
     ):
         self._backend = backend
         self._memory = memory_store or MemoryStore(k=memory_k)
+        self._prompt_cfg = prompt_cfg
 
     @property
     def agent_type(self) -> str:
@@ -63,7 +68,7 @@ class MemoryAgent(BaseAgent):
     def decide(self, ctx: AgentContext) -> NegotiationAction:
         memories = self._memory.retrieve(ctx.item.name)
         memory_text = build_memory_context(memories)
-        base_prompt = build_deliberative_prompt(ctx)
+        base_prompt = build_deliberative_prompt(ctx, prompt_cfg=self._prompt_cfg)
 
         prompt = (
             (memory_text + "\n" + base_prompt) if memory_text else base_prompt

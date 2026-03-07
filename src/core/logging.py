@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any
+from typing import Any, Optional
 
 from src.core.types import NegotiationResult, NegotiationTurn
 
@@ -24,7 +24,31 @@ class EventLogger:
         item_id: str,
         buyer_id: str,
         seller_id: str,
+        *,
+        llm_action: Optional[str] = None,
+        effective_action: Optional[str] = None,
+        override_flag: bool = False,
+        override_reason: str = "",
+        utility: Optional[float] = None,
+        threshold: Optional[float] = None,
+        offer_received: Optional[float] = None,
     ) -> None:
+        """Write a ``turn`` event to the JSONL log.
+
+        Research-grade fields (all keyword-only, backwards-compatible):
+            llm_action: raw action string from the agent/LLM, or
+                ``"skipped"`` when the settlement gate bypassed the call.
+            effective_action: action actually executed by the simulator
+                (may differ from *llm_action* when an override fired).
+            override_flag: ``True`` when the simulator overrode the LLM.
+            override_reason: explanation of the override, e.g.
+                ``"gate: utility=20.00 (offer $80 <= cap $100)"``.
+            utility: surplus the agent gains by accepting *offer_received*
+                (``None`` when no prior offer exists).
+            threshold: the agent's acceptance boundary — max price for a
+                buyer, min price for a seller.
+            offer_received: the opponent's last offer being evaluated.
+        """
         event: dict[str, Any] = {
             "event": "turn",
             "time_step": time_step,
@@ -37,6 +61,17 @@ class EventLogger:
             "offer_price": turn.action.offer_price,
             "message_public": turn.action.message_public,
             "timestamp": turn.timestamp,
+            # Research metadata — always present for consistent downstream parsing.
+            "offer_received": offer_received,
+            "utility": utility,
+            "threshold": threshold,
+            "llm_action": llm_action,
+            "effective_action": (
+                effective_action if effective_action is not None
+                else turn.action.action.value
+            ),
+            "override_flag": override_flag,
+            "override_reason": override_reason,
         }
         self._file.write(json.dumps(event) + "\n")
 

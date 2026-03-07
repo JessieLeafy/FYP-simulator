@@ -56,6 +56,23 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="Matching strategy")
     p.add_argument("--log_path", type=str, default=None,
                    help="Custom JSONL log path (default: <run_dir>/events.jsonl)")
+    # ── experiment mode ────────────────────────────────────────────────
+    p.add_argument(
+        "--experiment", type=str, default="none",
+        choices=[
+            "none", "concession", "anchoring", "deadline",
+            "market_dynamics", "shock_response",
+        ],
+        help="Run a structured experiment instead of a single simulation",
+    )
+    p.add_argument(
+        "--experiment_seeds", type=int, nargs="+", default=None,
+        help="Seeds for experiment repetitions (default: [42, 123, 456])",
+    )
+    p.add_argument(
+        "--experiment_output", type=str, default="outputs/experiments",
+        help="Base output directory for experiment results",
+    )
     return p
 
 
@@ -114,7 +131,23 @@ def main() -> None:
         cfg = SimulationConfig()
     _apply_overrides(cfg, args)
 
-    # run
+    # ── experiment dispatch ────────────────────────────────────────────
+    if args.experiment != "none":
+        from experiments.experiments import run_experiment  # noqa: E402
+
+        print(f"Running experiment: {args.experiment}")
+        t0 = time.time()
+        run_dir = run_experiment(
+            name=args.experiment,
+            base_cfg=cfg,
+            output_base=args.experiment_output,
+            seeds=args.experiment_seeds,
+        )
+        elapsed = time.time() - t0
+        print(f"Experiment complete in {elapsed:.1f}s → {run_dir}")
+        return
+
+    # ── standard single-run mode ──────────────────────────────────────
     rng = SeededRNG(cfg.seed)
     sim = MarketSimulator(cfg, rng)
 

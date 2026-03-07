@@ -34,23 +34,41 @@ def to_action(obj: dict) -> NegotiationAction:
 
 
 def fallback_action(ctx: AgentContext) -> NegotiationAction:
-    """Produce a safe default when the LLM output cannot be parsed."""
-    if ctx.round_number == 0:
-        if ctx.role == AgentRole.BUYER:
-            price = ctx.reservation_price * 0.6
-            if ctx.budget is not None:
-                price = min(price, ctx.budget)
-        else:
-            price = ctx.reservation_price * 1.3
-        return NegotiationAction(
-            ActionType.OFFER,
-            round(price, 2),
-            "Here's my opening offer.",
-            "Fallback: LLM parsing failure.",
-        )
+    """Produce a safe default when the LLM output cannot be parsed.
+
+    Uses a linear-concession strategy so negotiations make progress
+    even when the LLM fails to produce valid JSON.
+    """
+    if ctx.role == AgentRole.BUYER:
+        cap = min(ctx.reservation_price, ctx.budget or ctx.reservation_price)
+        initial = cap * 0.5
+        progress = ctx.round_number / max(ctx.max_rounds - 1, 1)
+        price = round(min(initial + (cap - initial) * progress, cap), 2)
+        # Accept if opponent's offer is within budget
+        if ctx.last_offer is not None and ctx.last_offer <= cap:
+            return NegotiationAction(
+                ActionType.ACCEPT, None,
+                "I accept your offer.",
+                "Fallback: accepting within budget.",
+            )
+    else:
+        cost = ctx.reservation_price
+        margin = ctx.target_margin or 0.15
+        initial = cost * (1 + 2 * margin)
+        progress = ctx.round_number / max(ctx.max_rounds - 1, 1)
+        price = round(max(initial - (initial - cost) * progress, cost), 2)
+        # Accept if opponent's offer is above cost
+        if ctx.last_offer is not None and ctx.last_offer >= cost:
+            return NegotiationAction(
+                ActionType.ACCEPT, None,
+                "Deal!",
+                "Fallback: accepting above cost.",
+            )
+
+    action_type = ActionType.OFFER if ctx.round_number == 0 else ActionType.COUNTER
     return NegotiationAction(
-        ActionType.REJECT, None,
-        "I'll have to pass.",
+        action_type, price,
+        f"I propose ${price:.2f}.",
         "Fallback: LLM parsing failure.",
     )
 

@@ -83,9 +83,12 @@ def validate_action_json(obj: dict[str, Any]) -> tuple[bool, str]:
 
     Returns ``(True, "")`` on success or ``(False, reason)`` on failure.
     """
-    for key in ("action", "offer_price", "message_public", "rationale_private"):
+    for key in ("action", "offer_price", "message_public"):
         if key not in obj:
             return False, f"Missing required field: {key}"
+    # rationale_private is optional; default to empty string if absent
+    if "rationale_private" not in obj:
+        obj["rationale_private"] = ""
 
     action = obj["action"]
     if action not in _VALID_ACTIONS:

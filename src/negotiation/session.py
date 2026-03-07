@@ -7,6 +7,25 @@ Usage:
     session = NegotiationSession(buyer_agent, seller_agent, item, buyer,
                                  seller, max_rounds=10)
     result = session.run()
+
+Settlement Gate
+---------------
+Each round the session runs a deterministic *feasibility check* before
+and after calling the agent.  This is the primary fix for the weak-LLM
+acceptance problem:
+
+1. **Pre-LLM gate** — if the opponent's standing offer is already
+   acceptable (non-negative surplus, within budget/cost), the session
+   settles immediately without calling the agent at all.
+
+2. **Post-LLM override** — if the agent returns ``COUNTER``/``REJECT``
+   but the standing offer is feasible, the simulator overrides to
+   ``ACCEPT``.  This is a defensive fallback; the pre-LLM gate should
+   normally catch all feasible cases first.
+
+Both ``llm_action`` (what the model said) and ``effective_action``
+(what the simulator executed) are written to the JSONL event log with
+an ``override_flag`` and ``override_reason`` for research analysis.
 """
 from __future__ import annotations
 
@@ -25,6 +44,7 @@ from src.core.types import (
     SellerState,
     TerminationReason,
 )
+from src.negotiation.feasibility import compute_utility, is_offer_feasible
 from src.negotiation.judge import ActionJudge
 
 if TYPE_CHECKING:
@@ -112,16 +132,97 @@ class NegotiationSession:
                     target_margin=self.seller.target_margin,
                 )
 
+            # ── pre-compute feasibility for this turn ─────────────────────
+            # offer_received is the opponent's last standing offer, which
+            # the current agent is deciding whether to accept.
+            offer_received = self.last_offer
+            if offer_received is not None:
+                utility = compute_utility(
+                    role, offer_received, self.buyer, self.seller,
+                )
+                threshold = (
+                    min(self.buyer.value, self.buyer.budget)
+                    if role == AgentRole.BUYER
+                    else self.seller.cost
+                )
+                feasible, accept_reason = is_offer_feasible(
+                    role, offer_received, self.buyer, self.seller,
+                )
+            else:
+                utility = threshold = None
+                feasible, accept_reason = False, ""
+
+            # ── Req 3a: pre-LLM settlement gate ──────────────────────────
+            # If the standing offer is already acceptable, settle without
+            # calling the agent.  This is the primary fix for weak LLMs
+            # that fail to output "accept" when they should.
+            if feasible:
+                action = NegotiationAction(
+                    ActionType.ACCEPT,
+                    None,
+                    "I accept your offer.",
+                    f"Settlement gate: {accept_reason}",
+                )
+                turn = NegotiationTurn(
+                    round_number=round_num,
+                    agent_role=role,
+                    action=action,
+                    timestamp=time.time(),
+                )
+                self.transcript.append(turn)
+                if self.event_logger:
+                    self.event_logger.log_turn(
+                        turn, self.time_step, self.item.item_id,
+                        self.buyer.buyer_id, self.seller.seller_id,
+                        llm_action="skipped",
+                        effective_action="accept",
+                        override_flag=True,
+                        override_reason=f"gate: {accept_reason}",
+                        utility=utility,
+                        threshold=threshold,
+                        offer_received=offer_received,
+                    )
+                self._result = self._settle(
+                    offer_received, round_num + 1, TerminationReason.ACCEPTED,
+                )
+                self.is_complete = True
+                return self._result
+
             # ── get action from agent ─────────────────────────────────────
-            action = agent.decide(ctx)
+            raw_action = agent.decide(ctx)
+            llm_action = raw_action.action.value
 
             # ── judge: validate + enforce ─────────────────────────────────
             action, risk_event = self.judge.enforce(
-                role, action, self.buyer, self.seller,
+                role, raw_action, self.buyer, self.seller,
                 self.last_offer, self.item, round_num, self.time_step,
             )
             if risk_event:
                 self.risk_events.append(risk_event)
+                if self.event_logger:
+                    self.event_logger.log_risk_event(risk_event)
+
+            # ── Req 3b: post-LLM feasibility override (defensive) ─────────
+            # The pre-LLM gate should have caught all feasible cases above.
+            # This override is a safety net in case a future code path
+            # bypasses the gate (e.g., if the gate threshold is ever tightened).
+            effective_action = action.action.value
+            override_flag = False
+            override_reason = ""
+            if action.action != ActionType.ACCEPT and offer_received is not None:
+                f2, reason2 = is_offer_feasible(
+                    role, offer_received, self.buyer, self.seller,
+                )
+                if f2:
+                    action = NegotiationAction(
+                        ActionType.ACCEPT,
+                        None,
+                        "I accept your offer.",
+                        f"Feasibility override: {reason2}",
+                    )
+                    effective_action = "accept"
+                    override_flag = True
+                    override_reason = f"post_llm: {reason2}"
 
             # ── record turn ───────────────────────────────────────────────
             turn = NegotiationTurn(
@@ -136,6 +237,13 @@ class NegotiationSession:
                 self.event_logger.log_turn(
                     turn, self.time_step, self.item.item_id,
                     self.buyer.buyer_id, self.seller.seller_id,
+                    llm_action=llm_action,
+                    effective_action=effective_action,
+                    override_flag=override_flag,
+                    override_reason=override_reason,
+                    utility=utility,
+                    threshold=threshold,
+                    offer_received=offer_received,
                 )
 
             # ── check termination ─────────────────────────────────────────
