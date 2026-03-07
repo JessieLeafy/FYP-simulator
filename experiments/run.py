@@ -52,7 +52,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ticks", type=int, default=None,
                    help="Number of market ticks (alias for --steps in market mode)")
     p.add_argument("--matching", type=str, default=None,
-                   choices=["random"],
+                   choices=["random", "surplus_max", "sorted", "round_robin"],
                    help="Matching strategy")
     p.add_argument("--log_path", type=str, default=None,
                    help="Custom JSONL log path (default: <run_dir>/events.jsonl)")
@@ -61,7 +61,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--experiment", type=str, default="none",
         choices=[
             "none", "concession", "anchoring", "deadline",
-            "market_dynamics", "shock_response",
+            "market_dynamics", "shock_response", "mechanism",
         ],
         help="Run a structured experiment instead of a single simulation",
     )

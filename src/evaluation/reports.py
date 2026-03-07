@@ -143,6 +143,27 @@ def write_deadline_csv(
     return path
 
 
+def write_mechanism_csv(
+    rows: list[dict[str, Any]], run_dir: str,
+) -> str:
+    """Write mechanism comparison tick-level data as ``mechanism_ticks.csv``.
+
+    Expected row keys: condition, seed, tick, num_sessions, deals_made,
+    liquidity, mean_price, price_std, buyer_surplus_mean, seller_surplus_mean.
+    """
+    fields = [
+        "condition", "seed", "tick", "num_sessions", "deals_made",
+        "liquidity", "mean_price", "price_std", "buyer_surplus_mean",
+        "seller_surplus_mean",
+    ]
+    path = os.path.join(run_dir, "mechanism_ticks.csv")
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+    return path
+
+
 def write_experiment_summary(
     data: dict[str, Any], run_dir: str,
 ) -> str:

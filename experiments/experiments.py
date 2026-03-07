@@ -20,12 +20,18 @@ from typing import Any
 from src.core.config import SimulationConfig, load_config
 from src.core.rng import SeededRNG
 from src.core.types import ActionType, AgentRole
-from src.evaluation.metrics import compute_metrics, compute_tick_stats
+from src.evaluation.metrics import (
+    compute_allocative_efficiency,
+    compute_metrics,
+    compute_surplus_gini,
+    compute_tick_stats,
+)
 from src.evaluation.reports import (
     write_anchoring_csv,
     write_concession_csv,
     write_deadline_csv,
     write_experiment_summary,
+    write_mechanism_csv,
     write_tick_stats_csv,
 )
 from src.evaluation.stats import pearson_correlation, simple_linear_regression
@@ -458,6 +464,117 @@ def run_shock_response(
 
 
 # ═══════════════════════════════════════════════════════════════════════
+#  H) Market Mechanism Comparison
+# ═══════════════════════════════════════════════════════════════════════
+
+def run_mechanism(
+    base_cfg: SimulationConfig,
+    output_base: str = "outputs/experiments",
+    seeds: list[int] | None = None,
+    conditions: list[str] | None = None,
+) -> str:
+    """Run market mechanism comparison experiment.
+
+    Compares different buyer-seller matching mechanisms (e.g. random vs
+    surplus_max) to measure effects on allocative efficiency, price
+    convergence, and welfare distribution.
+
+    Returns:
+        Path to experiment run directory.
+    """
+    if seeds is None:
+        seeds = [42, 123, 456]
+    if conditions is None:
+        conditions = ["random", "surplus_max"]
+
+    run_dir = _make_run_dir(output_base, "mechanism")
+    all_tick_data: list[dict[str, Any]] = []
+    condition_results: dict[str, list[Any]] = {c: [] for c in conditions}
+
+    for cond_name in conditions:
+        for seed in seeds:
+            cfg = copy.deepcopy(base_cfg)
+            cfg.seed = seed
+            cfg.mode = "market"
+            cfg.matching = cond_name
+            cfg.output_dir = os.path.join(run_dir, "runs")
+
+            sim = _run_simulation(cfg)
+
+            # collect results for per-condition aggregates
+            condition_results[cond_name].extend(sim.results)
+
+            for ts in sim.tick_stats:
+                all_tick_data.append({
+                    "condition": cond_name,
+                    "seed": seed,
+                    "tick": ts.tick,
+                    "num_sessions": ts.num_sessions,
+                    "deals_made": ts.deals_made,
+                    "liquidity": ts.liquidity,
+                    "mean_price": ts.mean_price,
+                    "price_std": ts.price_std,
+                    "buyer_surplus_mean": ts.buyer_surplus_mean,
+                    "seller_surplus_mean": ts.seller_surplus_mean,
+                })
+
+    # write combined tick-level CSV
+    if all_tick_data:
+        write_mechanism_csv(all_tick_data, run_dir)
+
+    # compute per-condition aggregates
+    condition_stats: dict[str, dict[str, Any]] = {}
+    for cond_name in conditions:
+        results = condition_results[cond_name]
+        deals = [r for r in results if r.deal_made]
+        deal_prices = [r.deal_price for r in deals if r.deal_price is not None]
+        all_surpluses = [
+            r.buyer_surplus + r.seller_surplus for r in deals
+        ]
+
+        alloc_eff = compute_allocative_efficiency(results)
+        gini = compute_surplus_gini(all_surpluses)
+
+        condition_stats[cond_name] = {
+            "total_sessions": len(results),
+            "deals_made": len(deals),
+            "deal_rate": round(len(deals) / len(results), 4) if results else 0,
+            "mean_price": (
+                round(sum(deal_prices) / len(deal_prices), 2)
+                if deal_prices else 0
+            ),
+            "price_std": (
+                round(
+                    (sum((p - sum(deal_prices) / len(deal_prices)) ** 2
+                         for p in deal_prices) / len(deal_prices)) ** 0.5, 2
+                )
+                if len(deal_prices) > 1 else 0
+            ),
+            "allocative_efficiency": alloc_eff,
+            "surplus_gini": gini,
+            "buyer_surplus_mean": (
+                round(sum(r.buyer_surplus for r in deals) / len(deals), 2)
+                if deals else 0
+            ),
+            "seller_surplus_mean": (
+                round(sum(r.seller_surplus for r in deals) / len(deals), 2)
+                if deals else 0
+            ),
+        }
+
+    summary = {
+        "experiment": "mechanism",
+        "conditions": conditions,
+        "seeds": seeds,
+        "total_tick_records": len(all_tick_data),
+        "condition_stats": condition_stats,
+        "git_hash": _git_hash(),
+    }
+    write_experiment_summary(summary, run_dir)
+    return run_dir
+
+
+# ═══════════════════════════════════════════════════════════════════════
 #  Dispatcher
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -467,6 +584,7 @@ EXPERIMENT_REGISTRY = {
     "deadline": run_deadline,
     "market_dynamics": run_market_dynamics,
     "shock_response": run_shock_response,
+    "mechanism": run_mechanism,
 }
 
 
