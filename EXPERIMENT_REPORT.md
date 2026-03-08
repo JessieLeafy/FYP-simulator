@@ -3,15 +3,15 @@
 **Project:** FYP — Multi-Agent Negotiation & Trading Simulation
 **Model:** `llama3.2:3b` via Ollama (local inference)
 **Framework:** Custom Python simulation (6-layer architecture)
-**Git commit:** `bc36a41`
-**Total sessions:** 2,250 across 5 experiments (fully complete)
-**Report date:** 2026-02-22
+**Git commit:** `30f61d4`
+**Total sessions:** 3,150 across 6 experiments (fully complete)
+**Report date:** 2026-03-08
 
 ---
 
 ## Abstract
 
-This report presents empirical results from a multi-agent bilateral negotiation simulator in which large language model (LLM) agents engage in alternating-offer bargaining over a single commodity. Five structured experiments were conducted to evaluate whether LLM agents exhibit economically rational bargaining behaviour consistent with classical theory: concession dynamics (Rubinstein 1982), anchoring bias (Tversky & Kahneman 1974), deadline pressure effects (Roth & Murnighan 1978), and market price discovery. Results show that LLM agents exhibit rational concession patterns and respond appropriately to zone-of-agreement width, but fail to exhibit anchoring bias or deadline-driven concession behaviour — departures from human norms that are theoretically significant and worth reporting as null results. Market dynamics experiments confirm stable price equilibrium and realistically dispersed prices consistent with bilateral bargaining theory.
+This report presents empirical results from a multi-agent bilateral negotiation simulator in which large language model (LLM) agents engage in alternating-offer bargaining over a single commodity. Six structured experiments were conducted to evaluate whether LLM agents exhibit economically rational bargaining behaviour consistent with classical theory: concession dynamics (Rubinstein 1982), anchoring bias (Tversky & Kahneman 1974), deadline pressure effects (Roth & Murnighan 1978), market price discovery, and supply–demand responsiveness. Results show that LLM agents exhibit rational concession patterns, respond appropriately to zone-of-agreement width, and produce price and liquidity responses consistent with the law of supply and demand. However, LLM agents fail to exhibit anchoring bias or deadline-driven concession behaviour — departures from human norms that are theoretically significant. Market dynamics experiments confirm stable price equilibrium and realistically dispersed prices consistent with bilateral bargaining theory.
 
 ---
 
@@ -24,6 +24,7 @@ This report presents empirical results from a multi-agent bilateral negotiation 
 3. Do LLM agents respond to deadline pressure by making larger late concessions?
 4. Does a market of LLM bilateral negotiators converge to a stable price equilibrium?
 5. How do exogenous supply/demand shocks affect market price and liquidity?
+6. Do transaction prices and trade volume respond in the expected direction when demand or supply conditions shift?
 
 ### 1.2 Agent Types
 
@@ -272,9 +273,80 @@ Within-tick price standard deviation is nearly identical across conditions. This
 
 ---
 
-## 8. Cross-Experiment Discussion
+## 8. Experiment I — Supply-Demand Structure
 
-### 8.1 Where LLM Agents Behave Rationally
+### 8.1 Design
+
+**Research question:** Do transaction prices and trade volume respond in the expected direction when demand or supply conditions shift?
+
+- **Conditions:** `baseline`, `demand_shock` (buyer values +20), `supply_shock` (seller costs +20)
+- **Mode:** Market simulation, 10 ticks, 10 buyer–seller pairs per tick
+- **Agent type:** `llm_reactive`
+- **Seeds:** 42, 123, 456 (3 replications)
+- **Sessions:** 300 per condition × 3 conditions = 900 total
+
+| Condition | Buyer value range | Seller cost range | Mean buyer value | Mean seller cost |
+|---|---|---|---|---|
+| `baseline` | $80 – $150 | $50 – $120 | $115 | $85 |
+| `demand_shock` | $100 – $170 | $50 – $120 | $135 (+$20) | $85 |
+| `supply_shock` | $80 – $150 | $70 – $140 | $115 | $105 (+$20) |
+
+### 8.2 Results
+
+**Table 7. Supply-demand experiment outcomes by condition (n = 300 each)**
+
+| Condition | Mean price | Liquidity | Total welfare | Buyer surplus | Seller surplus | Price dispersion |
+|---|---|---|---|---|---|---|
+| `baseline` | **$91.81** | **56.0%** | **$47.81** | $30.03 | $17.77 | $18.08 |
+| `demand_shock` | **$93.65** | **65.0%** | **$63.83** | $45.94 | $17.90 | $20.07 |
+| `supply_shock` | **$108.27** | **26.0%** | **$40.77** | $20.79 | $19.98 | $14.69 |
+
+**Table 8. Effect sizes relative to baseline**
+
+| Metric | Demand shock Δ | Supply shock Δ |
+|---|---|---|
+| Mean price | +$1.84 (+2.0%) | +$16.46 (+17.9%) |
+| Liquidity | +9.0pp (+16.1%) | −30.0pp (−53.6%) |
+| Total welfare | +$16.02 (+33.5%) | −$7.04 (−14.7%) |
+| Buyer surplus | +$15.91 (+53.0%) | −$9.24 (−30.8%) |
+| Seller surplus | +$0.13 (+0.7%) | +$2.21 (+12.4%) |
+
+**Table 9. Feasibility decomposition — mechanical vs. behavioural effects**
+
+| Condition | Feasible pairs | Behavioral success | Overall liquidity |
+|---|---|---|---|
+| `baseline` | 80.0% (240/300) | 70.0% | 56.0% |
+| `demand_shock` | 93.7% (281/300) | 69.4% | 65.0% |
+| `supply_shock` | 63.3% (190/300) | **41.1%** | 26.0% |
+
+### 8.3 Interpretation
+
+**Finding 15 — Demand shock increases price modestly, consistent with theory (positive result).**
+The demand shock condition produces a +2.0% price increase ($91.81 → $93.65). While directionally correct, the effect is smaller than expected given the +17% increase in mean buyer value ($115 → $135). This suggests LLM agents may anchor to historical price ranges rather than fully adjusting to higher buyer valuations.
+
+**Finding 16 — Supply shock increases price substantially (+17.9%), consistent with theory (strong result).**
+The supply shock condition produces a +$16.46 price increase ($91.81 → $108.27), closely matching the +$20 shift in mean seller cost. This is the expected response: sellers with higher costs demand higher prices to cover their reservation values.
+
+**Finding 17 — Supply shock collapses liquidity by 54% (strong result).**
+Liquidity drops from 56.0% to 26.0% under supply shock. This is partially mechanical (fewer pairs with positive ZOPA) but primarily behavioural: among feasible pairs, the deal success rate drops from 70% to 41%. When the zone of possible agreement is narrow, LLM agents struggle to converge on a mutually acceptable price.
+
+**Finding 18 — Demand shock increases welfare; supply shock decreases it (consistent with theory).**
+Total welfare rises +33.5% under demand shock (larger gains from trade available) and falls −14.7% under supply shock (smaller gains from trade plus lower deal rate). Both effects are directionally predicted by supply–demand theory.
+
+**Finding 19 — Supply shock redistributes surplus toward sellers.**
+Under baseline, buyers capture 63% of total surplus ($30.03 / $47.81). Under supply shock, sellers capture 49% ($19.98 / $40.77). Higher seller costs shift bargaining power toward sellers, who successfully extract a larger share of the reduced surplus.
+
+### 8.4 Caveats
+
+1. **Mechanical vs. behavioural effects are entangled.** The liquidity collapse under supply shock is ~40% mechanical (fewer feasible pairs) and ~60% behavioural (lower success rate among feasible pairs). The behavioural component suggests LLM agents are less effective at reaching agreement when the zone of possible agreement is narrow.
+
+2. **Demand shock price effect is modest.** A +17% increase in mean buyer value produces only a +2% price increase. This may indicate anchoring behaviour or bounded rationality distinct from classical price theory predictions.
+
+---
+
+## 9. Cross-Experiment Discussion
+
+### 9.1 Where LLM Agents Behave Rationally
 
 | Economic principle | Evidence |
 |---|---|
@@ -285,8 +357,11 @@ Within-tick price standard deviation is nearly identical across conditions. This
 | First-mover buyer advantage | Buyer surplus ($32.95) > seller surplus ($16.40) |
 | Shocks reduce price and liquidity | −$2.15 price, −3.1pp liquidity under shocks (supply/demand theory confirmed) |
 | Negative shocks dominate volatility | Worst-case liquidity drops 13.4pp; best-case unchanged (asymmetric shock effect) |
+| Supply shock raises price | +$16.46 (+17.9%) under +$20 seller cost shift (Exp I) |
+| Supply shock reduces liquidity | −30pp (−53.6%) liquidity collapse under supply shock (Exp I) |
+| Demand shock increases welfare | +$16.02 (+33.5%) total welfare under demand shock (Exp I) |
 
-### 8.2 Where LLM Agents Depart from Classical Predictions
+### 9.2 Where LLM Agents Depart from Classical Predictions
 
 | Predicted behaviour | Observed behaviour | Interpretation |
 |---|---|---|
@@ -294,8 +369,10 @@ Within-tick price standard deviation is nearly identical across conditions. This
 | Deadline-driven concession (late agreements) | Closes at round 3 regardless of horizon | LLM lacks intrinsic deadline awareness; gate dominates |
 | Law of One Price in large market | Persistent $20 within-tick dispersion | Expected under bilateral bargaining; LLM replicates human market structure |
 | Shocks increase price dispersion | σ unchanged ($20.36 vs. $19.55) | Bilateral bargaining protocol, not ZOPA width, drives within-tick variance |
+| Demand shock → proportional price increase | +17% buyer value → only +2% price | LLM may anchor to historical price ranges (Exp I) |
+| Narrow ZOPA → same deal rate among feasible | 70% → 41% success rate | LLM struggles to converge when ZOPA is tight (Exp I) |
 
-### 8.3 Role of the Feasibility Gate
+### 9.3 Role of the Feasibility Gate
 
 The feasibility gate is the single most important design decision affecting results:
 
@@ -305,7 +382,7 @@ The feasibility gate is the single most important design decision affecting resu
 
 ---
 
-## 9. Limitations
+## 10. Limitations
 
 1. **Single model evaluated.** All results are specific to `llama3.2:3b`. Larger or fine-tuned models may exhibit stronger anchoring bias or deadline sensitivity.
 
@@ -321,7 +398,7 @@ The feasibility gate is the single most important design decision affecting resu
 
 ---
 
-## 10. Conclusions
+## 11. Conclusions
 
 This study demonstrates that a custom multi-agent negotiation simulator with LLM agents can produce economically meaningful and reproducible results. Key conclusions:
 
@@ -337,7 +414,9 @@ This study demonstrates that a custom multi-agent negotiation simulator with LLM
 
 6. **Supply/demand shocks produce directionally correct but asymmetric effects.** Shocks lower mean prices and reduce average liquidity, consistent with supply/demand theory. Critically, negative shocks create severe liquidity drops (worst-case 13.3% vs. 26.7%) while positive shocks cannot push liquidity above the random-matching ceiling — an asymmetry with implications for market resilience design.
 
-These findings collectively suggest that LLM agents are capable economic agents in simple bilateral settings, but require carefully designed guardrails (feasibility gates, constraint injection) to reliably settle. Their departures from human bargaining heuristics (no anchoring, no deadline pressure) are theoretically informative and potentially advantageous in adversarial settings.
+7. **LLM agents respond to structural supply–demand shifts as predicted by classical theory.** A supply shock (+$20 seller costs) raises prices by +18% and collapses liquidity by 54%, while a demand shock (+$20 buyer values) modestly raises prices (+2%) and increases welfare by 34%. The liquidity collapse under supply shock is both mechanical (fewer feasible pairs) and behavioural (lower success rate among feasible pairs), suggesting LLM agents struggle when the zone of possible agreement is narrow.
+
+These findings collectively suggest that LLM agents are capable economic agents in simple bilateral settings, but require carefully designed guardrails (feasibility gates, constraint injection) to reliably settle. Their departures from human bargaining heuristics (no anchoring, no deadline pressure, weak demand-side price response) are theoretically informative and potentially advantageous in adversarial settings.
 
 ---
 
@@ -351,7 +430,8 @@ These findings collectively suggest that LLM agents are capable economic agents 
 | Anchoring | `exp_anchoring.yaml` | llm_reactive | 450 | 42, 123, 456 |
 | Deadline | `exp_deadline.yaml` | llm_deliberative | 450 | 42, 123, 456 |
 | Market dynamics | `exp_market_dynamics.yaml` | llm_reactive | 450 (30 ticks × 15) | 42 |
-| Shock response | `exp_shock_response.yaml` | llm_reactive | 900 (2 cond × 30 × 15) | 42 | ✓ complete |
+| Shock response | `exp_shock_response.yaml` | llm_reactive | 900 (2 cond × 30 × 15) | 42 |
+| Supply-demand | `exp_supply_demand.yaml` | llm_reactive | 900 (3 cond × 10 × 10 × 3 seeds) | 42, 123, 456 |
 
 ### B. LLM Backend
 
