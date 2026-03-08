@@ -458,6 +458,143 @@ def run_shock_response(
 
 
 # ═══════════════════════════════════════════════════════════════════════
+#  I) Supply-Demand Structure
+# ═══════════════════════════════════════════════════════════════════════
+
+def run_supply_demand(
+    base_cfg: SimulationConfig,
+    output_base: str = "outputs/experiments",
+    seeds: list[int] | None = None,
+) -> str:
+    """Run supply-demand structure experiment.
+
+    Tests the law of supply and demand: do transaction prices and trade
+    volume respond in the expected direction when demand or supply shifts?
+
+    Conditions:
+        baseline:     standard buyer/seller distributions
+        demand_shock: buyer values shifted upward (+20)
+        supply_shock: seller costs shifted upward (+20)
+
+    Returns:
+        Path to experiment run directory.
+    """
+    if seeds is None:
+        seeds = [42]
+
+    run_dir = _make_run_dir(output_base, "supply_demand")
+
+    # Define conditions as overrides to market distribution parameters
+    conditions = {
+        "baseline": {
+            "market.buyer_value_min": 80.0,
+            "market.buyer_value_max": 150.0,
+            "market.seller_cost_min": 50.0,
+            "market.seller_cost_max": 120.0,
+        },
+        "demand_shock": {
+            "market.buyer_value_min": 100.0,
+            "market.buyer_value_max": 170.0,
+            "market.seller_cost_min": 50.0,
+            "market.seller_cost_max": 120.0,
+        },
+        "supply_shock": {
+            "market.buyer_value_min": 80.0,
+            "market.buyer_value_max": 150.0,
+            "market.seller_cost_min": 70.0,
+            "market.seller_cost_max": 140.0,
+        },
+    }
+
+    all_condition_data: list[dict[str, Any]] = []
+
+    for cond_name, overrides in conditions.items():
+        # Compute expected average values from distribution
+        avg_buyer_value = (overrides["market.buyer_value_min"] +
+                           overrides["market.buyer_value_max"]) / 2
+        avg_seller_cost = (overrides["market.seller_cost_min"] +
+                           overrides["market.seller_cost_max"]) / 2
+
+        for seed in seeds:
+            cfg = copy.deepcopy(base_cfg)
+            cfg.seed = seed
+            cfg.mode = "market"
+            cfg.output_dir = os.path.join(run_dir, "runs")
+
+            # Apply market distribution overrides
+            for key, val in overrides.items():
+                section, field = key.split(".", 1)
+                setattr(getattr(cfg, section), field, val)
+
+            sim = _run_simulation(cfg)
+
+            # Aggregate tick stats for this condition+seed
+            if sim.tick_stats:
+                prices = [ts.mean_price for ts in sim.tick_stats if ts.mean_price > 0]
+                liquidity_vals = [ts.liquidity for ts in sim.tick_stats]
+                buyer_surp = [ts.buyer_surplus_mean for ts in sim.tick_stats if ts.deals_made > 0]
+                seller_surp = [ts.seller_surplus_mean for ts in sim.tick_stats if ts.deals_made > 0]
+                price_stds = [ts.price_std for ts in sim.tick_stats if ts.price_std > 0]
+
+                mean_price = sum(prices) / len(prices) if prices else 0
+                avg_liquidity = sum(liquidity_vals) / len(liquidity_vals) if liquidity_vals else 0
+                avg_buyer_surplus = sum(buyer_surp) / len(buyer_surp) if buyer_surp else 0
+                avg_seller_surplus = sum(seller_surp) / len(seller_surp) if seller_surp else 0
+                total_welfare = avg_buyer_surplus + avg_seller_surplus
+                avg_price_std = sum(price_stds) / len(price_stds) if price_stds else 0
+
+                all_condition_data.append({
+                    "condition": cond_name,
+                    "seed": seed,
+                    "avg_buyer_value": round(avg_buyer_value, 2),
+                    "avg_seller_cost": round(avg_seller_cost, 2),
+                    "mean_price": round(mean_price, 2),
+                    "liquidity": round(avg_liquidity, 4),
+                    "total_welfare": round(total_welfare, 2),
+                    "buyer_surplus": round(avg_buyer_surplus, 2),
+                    "seller_surplus": round(avg_seller_surplus, 2),
+                    "price_dispersion": round(avg_price_std, 2),
+                })
+
+    # Write results CSV
+    if all_condition_data:
+        import csv
+        fields = list(all_condition_data[0].keys())
+        path = os.path.join(run_dir, "supply_demand_results.csv")
+        with open(path, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(all_condition_data)
+
+    # Compute summary statistics per condition
+    condition_summaries = {}
+    for cond_name in conditions:
+        cond_rows = [r for r in all_condition_data if r["condition"] == cond_name]
+        if cond_rows:
+            condition_summaries[cond_name] = {
+                "avg_buyer_value": cond_rows[0]["avg_buyer_value"],
+                "avg_seller_cost": cond_rows[0]["avg_seller_cost"],
+                "mean_price": round(sum(r["mean_price"] for r in cond_rows) / len(cond_rows), 2),
+                "liquidity": round(sum(r["liquidity"] for r in cond_rows) / len(cond_rows), 4),
+                "total_welfare": round(sum(r["total_welfare"] for r in cond_rows) / len(cond_rows), 2),
+                "buyer_surplus": round(sum(r["buyer_surplus"] for r in cond_rows) / len(cond_rows), 2),
+                "seller_surplus": round(sum(r["seller_surplus"] for r in cond_rows) / len(cond_rows), 2),
+                "price_dispersion": round(sum(r["price_dispersion"] for r in cond_rows) / len(cond_rows), 2),
+            }
+
+    summary = {
+        "experiment": "supply_demand",
+        "conditions": list(conditions.keys()),
+        "seeds": seeds,
+        "total_condition_seed_runs": len(all_condition_data),
+        "condition_summaries": condition_summaries,
+        "git_hash": _git_hash(),
+    }
+    write_experiment_summary(summary, run_dir)
+    return run_dir
+
+
+# ═══════════════════════════════════════════════════════════════════════
 #  Dispatcher
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -467,6 +604,7 @@ EXPERIMENT_REGISTRY = {
     "deadline": run_deadline,
     "market_dynamics": run_market_dynamics,
     "shock_response": run_shock_response,
+    "supply_demand": run_supply_demand,
 }
 
 
