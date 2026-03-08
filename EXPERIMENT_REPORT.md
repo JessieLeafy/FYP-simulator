@@ -3,15 +3,15 @@
 **Project:** FYP — Multi-Agent Negotiation & Trading Simulation
 **Model:** `llama3.2:3b` via Ollama (local inference)
 **Framework:** Custom Python simulation (6-layer architecture)
-**Git commit:** `30f61d4`
-**Total sessions:** 3,150 across 6 experiments (fully complete)
+**Git commit:** `bc36a41` (Experiments A–E), `72e280b` (Experiment H), `f61ff42` (Experiment I)
+**Total sessions:** 4,120 across 7 experiments (fully complete)
 **Report date:** 2026-03-08
 
 ---
 
 ## Abstract
 
-This report presents empirical results from a multi-agent bilateral negotiation simulator in which large language model (LLM) agents engage in alternating-offer bargaining over a single commodity. Six structured experiments were conducted to evaluate whether LLM agents exhibit economically rational bargaining behaviour consistent with classical theory: concession dynamics (Rubinstein 1982), anchoring bias (Tversky & Kahneman 1974), deadline pressure effects (Roth & Murnighan 1978), market price discovery, and supply–demand responsiveness. Results show that LLM agents exhibit rational concession patterns, respond appropriately to zone-of-agreement width, and produce price and liquidity responses consistent with the law of supply and demand. However, LLM agents fail to exhibit anchoring bias or deadline-driven concession behaviour — departures from human norms that are theoretically significant. Market dynamics experiments confirm stable price equilibrium and realistically dispersed prices consistent with bilateral bargaining theory.
+This report presents empirical results from a multi-agent bilateral negotiation simulator in which large language model (LLM) agents engage in alternating-offer bargaining over a single commodity. Seven experiments were conducted to evaluate whether LLM agents exhibit economically rational bargaining behaviour consistent with classical theory: concession dynamics (Rubinstein 1982), anchoring bias (Tversky & Kahneman 1974), deadline pressure effects (Roth & Murnighan 1978), market price discovery, institutional mechanism design effects, and supply–demand responsiveness. Results show that LLM agents exhibit rational concession patterns, respond appropriately to zone-of-agreement width, and produce price and liquidity responses consistent with the law of supply and demand, but fail to exhibit anchoring bias or deadline-driven concession behaviour — departures from human norms that are theoretically significant and worth reporting as null results. Market dynamics experiments confirm stable price equilibrium and realistically dispersed prices consistent with bilateral bargaining theory. Surplus-maximising matching improves deal rates (+16 pp) and allocative efficiency (+5.8 pp) relative to random matching, with gains accruing disproportionately to buyers. Structural supply–demand shifts produce directionally correct price and liquidity responses: a supply shock (+$20 seller costs) raises prices by +18% and collapses liquidity by 54%, while a demand shock (+$20 buyer values) modestly raises prices (+2%) and increases welfare by 34%.
 
 ---
 
@@ -23,8 +23,9 @@ This report presents empirical results from a multi-agent bilateral negotiation 
 2. Does the first-offer anchor influence LLM final deal prices, as it does in human bargaining?
 3. Do LLM agents respond to deadline pressure by making larger late concessions?
 4. Does a market of LLM bilateral negotiators converge to a stable price equilibrium?
-5. How do exogenous supply/demand shocks affect market price and liquidity?
-6. Do transaction prices and trade volume respond in the expected direction when demand or supply conditions shift?
+5. How do stochastic exogenous shocks affect market price and liquidity? *(Exp E — random multiplicative shocks)*
+6. Does the buyer–seller matching mechanism affect deal rates, allocative efficiency, and surplus distribution?
+7. Do transaction prices and trade volume respond in the expected direction when demand or supply conditions shift structurally? *(Exp I — fixed +$20 shifts to buyer values or seller costs)*
 
 ### 1.2 Agent Types
 
@@ -51,7 +52,7 @@ A deterministic pre-LLM settlement gate checks whether the opponent's standing o
 
 ## 2. Experimental Setup
 
-All experiments use `scenario_mode: fixed` (except market dynamics / shock response) with the following common parameters unless overridden per experiment:
+Experiments A–C use `scenario_mode: fixed` with the following common parameters unless overridden per experiment. Experiments D, E, H, and I use `scenario_mode: distribution` (market mode with heterogeneous agent populations):
 
 | Parameter | Value |
 |---|---|
@@ -273,9 +274,57 @@ Within-tick price standard deviation is nearly identical across conditions. This
 
 ---
 
-## 8. Experiment I — Supply-Demand Structure
+## 8. Experiment H — Market Mechanism Comparison
 
 ### 8.1 Design
+
+**Research question:** Does the buyer–seller matching algorithm affect market-level deal rates, allocative efficiency, welfare, and price dispersion?
+
+- **Conditions:** `random` (baseline) vs. `surplus_max` (oracle, greedy maximum-ZOPA pairing)
+- **Mode:** Market simulation, 10 ticks, 10 buyer–seller pairs per tick
+- **Agent type:** `llm_reactive`
+- **Scenario:** Distribution mode (heterogeneous buyers/sellers)
+- **Seeds:** 42, 123, 456 (3 replications)
+- **Gate:** Enabled
+- **Total sessions:** 520 (300 random + 220 surplus_max)
+
+The surplus-maximising matcher pairs buyers and sellers in descending order of ZOPA width, only matching pairs with positive ZOPA. It therefore produces fewer sessions per tick than random matching (which pairs all agents regardless of ZOPA), but a higher proportion of those sessions have the structural preconditions for a deal.
+
+### 8.2 Results
+
+**Table 7. Market mechanism comparison: random vs. surplus_max (10 ticks × 10 pairs × 3 seeds)**
+
+| Metric | `random` | `surplus_max` | Δ |
+|---|---|---|---|
+| Total sessions | 300 | 220 | −80 (ZOPA+ pairs only) |
+| Deals made | 167 | 158 | −9 |
+| Deal rate | **55.7%** | **71.8%** | **+16.1 pp** |
+| Mean price | $91.47 | $87.24 | −$4.23 |
+| Price std | $18.60 | $16.45 | −$2.15 |
+| Allocative efficiency | **0.840** | **0.897** | **+0.057** |
+| Surplus Gini | 0.226 | 0.216 | −0.010 |
+| Buyer surplus (mean) | $30.54 | $42.25 | +$11.71 |
+| Seller surplus (mean) | $17.39 | $16.17 | −$1.22 |
+
+### 8.3 Interpretation
+
+**Finding 15 — Surplus-maximising matching improves deal rates by eliminating structurally infeasible pairs.**
+The surplus_max matcher achieves a 71.8% deal rate compared to 55.7% for random matching (+16.1 pp). This improvement is largely mechanical: random matching produces pairs with negative ZOPA (buyer value < seller cost) where no deal is possible regardless of agent capability, while surplus_max only forms pairs with positive ZOPA. The raw deal count is similar (158 vs. 167), but surplus_max achieves this from 80 fewer sessions.
+
+**Finding 16 — Allocative efficiency improves under surplus-maximising matching.**
+Allocative efficiency rises from 0.840 to 0.897 (+5.7 pp). The surplus_max matcher pairs agents with the largest ZOPAs first, concentrating trading opportunities where the most welfare can be realised. This is consistent with the theoretical prediction that informed matching mechanisms improve welfare relative to random assignment.
+
+**Finding 17 — Surplus gains accrue primarily to buyers.**
+Buyer surplus increases by $11.71 (from $30.54 to $42.25, +38%) while seller surplus is essentially unchanged ($17.39 to $16.17). The larger ZOPAs created by surplus_max matching provide more room for the first-mover buyer advantage to operate, amplifying the buyer-side surplus concentration already observed in Experiment D. Prices are slightly lower under surplus_max ($87.24 vs. $91.47), consistent with buyers capturing the additional surplus.
+
+**Finding 18 — Price dispersion is slightly lower under surplus-maximising matching.**
+Within-tick price standard deviation decreases from $18.60 to $16.45 under surplus_max. This modest reduction suggests that more homogeneous ZOPA widths (a consequence of greedy pairing by ZOPA size) produce slightly more uniform transaction prices, though dispersion remains substantial under both conditions.
+
+---
+
+## 9. Experiment I — Supply-Demand Structure
+
+### 9.1 Design
 
 **Research question:** Do transaction prices and trade volume respond in the expected direction when demand or supply conditions shift?
 
@@ -291,9 +340,9 @@ Within-tick price standard deviation is nearly identical across conditions. This
 | `demand_shock` | $100 – $170 | $50 – $120 | $135 (+$20) | $85 |
 | `supply_shock` | $80 – $150 | $70 – $140 | $115 | $105 (+$20) |
 
-### 8.2 Results
+### 9.2 Results
 
-**Table 7. Supply-demand experiment outcomes by condition (n = 300 each)**
+**Table 8. Supply-demand experiment outcomes by condition (n = 300 each)**
 
 | Condition | Mean price | Liquidity | Total welfare | Buyer surplus | Seller surplus | Price dispersion |
 |---|---|---|---|---|---|---|
@@ -301,7 +350,7 @@ Within-tick price standard deviation is nearly identical across conditions. This
 | `demand_shock` | **$93.65** | **65.0%** | **$63.83** | $45.94 | $17.90 | $20.07 |
 | `supply_shock` | **$108.27** | **26.0%** | **$40.77** | $20.79 | $19.98 | $14.69 |
 
-**Table 8. Effect sizes relative to baseline**
+**Table 9. Effect sizes relative to baseline**
 
 | Metric | Demand shock Δ | Supply shock Δ |
 |---|---|---|
@@ -311,7 +360,7 @@ Within-tick price standard deviation is nearly identical across conditions. This
 | Buyer surplus | +$15.91 (+53.0%) | −$9.24 (−30.8%) |
 | Seller surplus | +$0.13 (+0.7%) | +$2.21 (+12.4%) |
 
-**Table 9. Feasibility decomposition — mechanical vs. behavioural effects**
+**Table 10. Feasibility decomposition — mechanical vs. behavioural effects**
 
 | Condition | Feasible pairs | Behavioral success | Overall liquidity |
 |---|---|---|---|
@@ -319,24 +368,24 @@ Within-tick price standard deviation is nearly identical across conditions. This
 | `demand_shock` | 93.7% (281/300) | 69.4% | 65.0% |
 | `supply_shock` | 63.3% (190/300) | **41.1%** | 26.0% |
 
-### 8.3 Interpretation
+### 9.3 Interpretation
 
-**Finding 15 — Demand shock increases price modestly, consistent with theory (positive result).**
+**Finding 19 — Demand shock increases price modestly, consistent with theory (positive result).**
 The demand shock condition produces a +2.0% price increase ($91.81 → $93.65). While directionally correct, the effect is smaller than expected given the +17% increase in mean buyer value ($115 → $135). This suggests LLM agents may anchor to historical price ranges rather than fully adjusting to higher buyer valuations.
 
-**Finding 16 — Supply shock increases price substantially (+17.9%), consistent with theory (strong result).**
+**Finding 20 — Supply shock increases price substantially (+17.9%), consistent with theory (strong result).**
 The supply shock condition produces a +$16.46 price increase ($91.81 → $108.27), closely matching the +$20 shift in mean seller cost. This is the expected response: sellers with higher costs demand higher prices to cover their reservation values.
 
-**Finding 17 — Supply shock collapses liquidity by 54% (strong result).**
+**Finding 21 — Supply shock collapses liquidity by 54% (strong result).**
 Liquidity drops from 56.0% to 26.0% under supply shock. This is partially mechanical (fewer pairs with positive ZOPA) but primarily behavioural: among feasible pairs, the deal success rate drops from 70% to 41%. When the zone of possible agreement is narrow, LLM agents struggle to converge on a mutually acceptable price.
 
-**Finding 18 — Demand shock increases welfare; supply shock decreases it (consistent with theory).**
+**Finding 22 — Demand shock increases welfare; supply shock decreases it (consistent with theory).**
 Total welfare rises +33.5% under demand shock (larger gains from trade available) and falls −14.7% under supply shock (smaller gains from trade plus lower deal rate). Both effects are directionally predicted by supply–demand theory.
 
-**Finding 19 — Supply shock redistributes surplus toward sellers.**
+**Finding 23 — Supply shock redistributes surplus toward sellers.**
 Under baseline, buyers capture 63% of total surplus ($30.03 / $47.81). Under supply shock, sellers capture 49% ($19.98 / $40.77). Higher seller costs shift bargaining power toward sellers, who successfully extract a larger share of the reduced surplus.
 
-### 8.4 Caveats
+### 9.4 Caveats
 
 1. **Mechanical vs. behavioural effects are entangled.** The liquidity collapse under supply shock is ~40% mechanical (fewer feasible pairs) and ~60% behavioural (lower success rate among feasible pairs). The behavioural component suggests LLM agents are less effective at reaching agreement when the zone of possible agreement is narrow.
 
@@ -344,9 +393,9 @@ Under baseline, buyers capture 63% of total surplus ($30.03 / $47.81). Under sup
 
 ---
 
-## 9. Cross-Experiment Discussion
+## 10. Cross-Experiment Discussion
 
-### 9.1 Where LLM Agents Behave Rationally
+### 10.1 Where LLM Agents Behave Rationally
 
 | Economic principle | Evidence |
 |---|---|
@@ -357,11 +406,13 @@ Under baseline, buyers capture 63% of total surplus ($30.03 / $47.81). Under sup
 | First-mover buyer advantage | Buyer surplus ($32.95) > seller surplus ($16.40) |
 | Shocks reduce price and liquidity | −$2.15 price, −3.1pp liquidity under shocks (supply/demand theory confirmed) |
 | Negative shocks dominate volatility | Worst-case liquidity drops 13.4pp; best-case unchanged (asymmetric shock effect) |
+| Mechanism → efficiency gain | +5.8 pp allocative efficiency under surplus-max matching |
+| Mechanism → deal rate gain | +16.1 pp deal rate under surplus-max matching |
 | Supply shock raises price | +$16.46 (+17.9%) under +$20 seller cost shift (Exp I) |
 | Supply shock reduces liquidity | −30pp (−53.6%) liquidity collapse under supply shock (Exp I) |
 | Demand shock increases welfare | +$16.02 (+33.5%) total welfare under demand shock (Exp I) |
 
-### 9.2 Where LLM Agents Depart from Classical Predictions
+### 10.2 Where LLM Agents Depart from Classical Predictions
 
 | Predicted behaviour | Observed behaviour | Interpretation |
 |---|---|---|
@@ -372,7 +423,7 @@ Under baseline, buyers capture 63% of total surplus ($30.03 / $47.81). Under sup
 | Demand shock → proportional price increase | +17% buyer value → only +2% price | LLM may anchor to historical price ranges (Exp I) |
 | Narrow ZOPA → same deal rate among feasible | 70% → 41% success rate | LLM struggles to converge when ZOPA is tight (Exp I) |
 
-### 9.3 Role of the Feasibility Gate
+### 10.3 Role of the Feasibility Gate
 
 The feasibility gate is the single most important design decision affecting results:
 
@@ -382,7 +433,7 @@ The feasibility gate is the single most important design decision affecting resu
 
 ---
 
-## 10. Limitations
+## 11. Limitations
 
 1. **Single model evaluated.** All results are specific to `llama3.2:3b`. Larger or fine-tuned models may exhibit stronger anchoring bias or deadline sensitivity.
 
@@ -390,15 +441,17 @@ The feasibility gate is the single most important design decision affecting resu
 
 3. **Two-round concession data only.** The gate fires at round 2 in fixed-parameter scenarios, yielding only two data points per session for concession analysis.
 
-4. **Single seed for market experiments.** Market dynamics and shock response use seed=42 only. Results may not generalise across different random matchings.
+4. **Single seed for Experiments D and E.** Market dynamics (D) and shock response (E) use seed=42 only. Results from these two experiments may not generalise across different random matchings. (Experiments H and I use three seeds.)
 
 5. **No cross-run learning.** Memory agents were not used in these experiments; agents do not accumulate experience across negotiation sessions.
 
-6. **No multi-issue negotiation.** All sessions negotiate a single price. Real markets involve quality, delivery, terms, etc.
+6. **Partial mechanism coverage.** Experiment H tests only random and surplus-maximising matching. The sorted and round-robin matchers are implemented but not empirically evaluated.
+
+7. **No multi-issue negotiation.** All sessions negotiate a single price. Real markets involve quality, delivery, terms, etc.
 
 ---
 
-## 11. Conclusions
+## 12. Conclusions
 
 This study demonstrates that a custom multi-agent negotiation simulator with LLM agents can produce economically meaningful and reproducible results. Key conclusions:
 
@@ -414,7 +467,9 @@ This study demonstrates that a custom multi-agent negotiation simulator with LLM
 
 6. **Supply/demand shocks produce directionally correct but asymmetric effects.** Shocks lower mean prices and reduce average liquidity, consistent with supply/demand theory. Critically, negative shocks create severe liquidity drops (worst-case 13.3% vs. 26.7%) while positive shocks cannot push liquidity above the random-matching ceiling — an asymmetry with implications for market resilience design.
 
-7. **LLM agents respond to structural supply–demand shifts as predicted by classical theory.** A supply shock (+$20 seller costs) raises prices by +18% and collapses liquidity by 54%, while a demand shock (+$20 buyer values) modestly raises prices (+2%) and increases welfare by 34%. The liquidity collapse under supply shock is both mechanical (fewer feasible pairs) and behavioural (lower success rate among feasible pairs), suggesting LLM agents struggle when the zone of possible agreement is narrow.
+7. **Matching mechanism design improves market efficiency.** Surplus-maximising matching raises deal rates by 16 pp and allocative efficiency by 5.8 pp relative to random matching, but the gains accrue disproportionately to buyers (+38% surplus) while seller surplus is essentially unchanged. Mechanism design interacts with first-mover protocol effects.
+
+8. **LLM agents respond to structural supply–demand shifts as predicted by classical theory.** A supply shock (+$20 seller costs) raises prices by +18% and collapses liquidity by 54%, while a demand shock (+$20 buyer values) modestly raises prices (+2%) and increases welfare by 34%. The liquidity collapse under supply shock is both mechanical (fewer feasible pairs) and behavioural (lower success rate among feasible pairs), suggesting LLM agents struggle when the zone of possible agreement is narrow.
 
 These findings collectively suggest that LLM agents are capable economic agents in simple bilateral settings, but require carefully designed guardrails (feasibility gates, constraint injection) to reliably settle. Their departures from human bargaining heuristics (no anchoring, no deadline pressure, weak demand-side price response) are theoretically informative and potentially advantageous in adversarial settings.
 
@@ -431,6 +486,7 @@ These findings collectively suggest that LLM agents are capable economic agents 
 | Deadline | `exp_deadline.yaml` | llm_deliberative | 450 | 42, 123, 456 |
 | Market dynamics | `exp_market_dynamics.yaml` | llm_reactive | 450 (30 ticks × 15) | 42 |
 | Shock response | `exp_shock_response.yaml` | llm_reactive | 900 (2 cond × 30 × 15) | 42 |
+| Mechanism | `exp_mechanism.yaml` | llm_reactive | 520 (300 random + 220 surplus_max) | 42, 123, 456 |
 | Supply-demand | `exp_supply_demand.yaml` | llm_reactive | 900 (3 cond × 10 × 10 × 3 seeds) | 42, 123, 456 |
 
 ### B. LLM Backend
@@ -447,7 +503,7 @@ These findings collectively suggest that LLM agents are capable economic agents 
 
 ### C. Reproducibility
 
-All runs are seeded via `SeededRNG` with `fork()` per time step. Git commit `bc36a41` identifies the exact codebase version. All raw outputs (JSONL event logs, CSV files, summary JSON) are retained in `outputs/experiments/`.
+All runs are seeded via `SeededRNG` with `fork()` per time step. Git commits `bc36a41` (Experiments A–E), `72e280b` (Experiment H), and `f61ff42` (Experiment I) identify the codebase versions used. All raw outputs (JSONL event logs, CSV files, summary JSON) are retained in `outputs/experiments/`.
 
 ### D. References
 

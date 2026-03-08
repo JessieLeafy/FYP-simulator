@@ -1,0 +1,17 @@
+{
+  "experiment": "anchoring",
+  "conditions": [
+    "anchor_low",
+    "anchor_mid",
+    "anchor_high"
+  ],
+  "seeds": [
+    42,
+    123,
+    456
+  ],
+  "total_sessions": 450,
+  "deals_with_first_offer": 304,
+  "first_offer_final_price_correlation": -0.148,
+  "git_hash": "bc36a41"
+}

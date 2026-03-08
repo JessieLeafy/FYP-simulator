@@ -1,0 +1,16 @@
+{
+  "experiment": "concession",
+  "conditions": [
+    "rule_based",
+    "llm_reactive",
+    "llm_deliberative"
+  ],
+  "seeds": [
+    42,
+    123,
+    456
+  ],
+  "total_sessions": 450,
+  "total_offer_rows": 900,
+  "git_hash": "bc36a41"
+}

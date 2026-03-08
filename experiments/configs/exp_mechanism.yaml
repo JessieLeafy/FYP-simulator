@@ -1,0 +1,45 @@
+# Experiment H: Market Mechanism Comparison
+# Compares buyer-seller matching mechanisms (random vs surplus_max)
+# to measure effects on allocative efficiency, price convergence,
+# and welfare distribution in bilateral bargaining.
+agent_type: llm_reactive
+mode: market
+steps: 30
+buyers_per_step: 15
+sellers_per_step: 15
+seed: 42
+scenario_mode: distribution
+
+llm:
+  model: llama3.2:3b
+  temperature: 0.2
+  max_tokens: 256
+  timeout_sec: 30.0
+  max_retries: 3
+
+market:
+  buyer_value_min: 80.0
+  buyer_value_max: 150.0
+  seller_cost_min: 50.0
+  seller_cost_max: 120.0
+  buyer_budget_min: 100.0
+  buyer_budget_max: 200.0
+  seller_margin_min: 0.05
+  seller_margin_max: 0.25
+  buyer_patience_min: 3
+  buyer_patience_max: 8
+  seller_patience_min: 3
+  seller_patience_max: 8
+  num_item_types: 5
+
+negotiation:
+  max_rounds: 10
+  min_price: 1.0
+  max_price: 500.0
+
+prompt:
+  include_deadline_salience: true
+  include_objective_equations: true
+
+shock:
+  enabled: false

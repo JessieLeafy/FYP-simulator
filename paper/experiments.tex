@@ -1,0 +1,311 @@
+% ═══════════════════════════════════════════════════════════════════
+%  Section 4 — Experimental Setup
+% ═══════════════════════════════════════════════════════════════════
+
+\label{sec:experiments}
+
+This section describes the design of all eight experiments conducted on the platform.  Six experiments (A--E, H) are complete, with results reported in Section~\ref{sec:results}.  Two further experiments (F and~G) have infrastructure implemented but have not yet been executed; their designs are documented here for completeness.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Common Setup}
+\label{sec:common-setup}
+
+All experiments share the following configuration unless explicitly overridden.
+
+\paragraph{Model and inference.}
+A single language model is used throughout: \texttt{llama3.2:3b} served locally via Ollama at temperature~0.2, with a maximum output length of 256~tokens and a 30-second timeout per call.  Failed LLM calls are retried once with a format-correction prompt; if the retry also fails, a deterministic fallback action is generated using the rule-based linear concession formula (Section~\ref{sec:agents}).
+
+\paragraph{Feasibility gate.}
+The deterministic settlement gate (Section~\ref{sec:gate}) is enabled for all six completed experiments.  As discussed in Section~\ref{sec:gate}, this ensures high deal rates in wide-ZOPA scenarios but masks behavioural effects that require multi-round interaction.  The gate's override rate is reported per experiment in Section~\ref{sec:results} so that gate-driven and LLM-driven settlements can be distinguished.
+
+\paragraph{Prompt steering.}
+Two prompt-level design choices apply across all LLM conditions and affect interpretation:
+
+\begin{itemize}
+    \item The prompt explicitly instructs the model to prefer \textsc{counter} over \textsc{reject}, reducing walk-away behaviour.  This steering is active in all experiments and may suppress deadline effects (Experiment~C) and inflate deal rates relative to an unsteered baseline.
+    \item An accept-condition block pre-computes the utility of the opponent's standing offer and presents it directly in the prompt, so the model need not perform arithmetic.  This may reduce anchoring effects (Experiment~B) by giving the model explicit surplus information rather than requiring it to infer value from the first offer.
+\end{itemize}
+
+Neither of these design choices has been ablated; their effects on results are discussed as confounds rather than controlled variables.
+
+\paragraph{Reproducibility.}
+All stochastic processes are controlled by a \texttt{SeededRNG} with per-tick forking (Section~\ref{sec:reproducibility}).  Each experiment records the active configuration, seed list, and git commit hash in a structured JSON summary.  Every agent action, session outcome, and constraint violation is logged to a JSONL event stream.
+
+\paragraph{Replication.}
+Experiments A--C are each replicated across three random seeds (42, 123, 456).  Experiments D and E use a single seed (42) and are reported as exploratory.  Table~\ref{tab:experiment-summary} summarises all eight experiments.
+
+\begin{table}[ht]
+\centering
+\caption{Summary of all experiments.  Status indicates whether results are reported in this thesis.}
+\label{tab:experiment-summary}
+\small
+\begin{tabular}{@{}llllrl@{}}
+\toprule
+Exp & Name & Independent variable & Agent type & Sessions & Status \\
+\midrule
+A & Concession   & agent type (3 levels) & mixed & 450 & Complete (3 seeds) \\
+B & Anchoring    & ZOPA width (3 levels) & reactive & 450 & Complete (3 seeds) \\
+C & Deadline     & max rounds (3 levels) & deliberative & 450 & Complete (3 seeds) \\
+D & Market       & time (30 ticks) & reactive & 450 & Complete (1 seed) \\
+E & Shock        & shock on/off & reactive & 900 & Complete (1 seed) \\
+\addlinespace
+F & Reputation   & reputation memory & reputation & --- & Infrastructure only \\
+G & Communication & comm.\ strategy (4 levels) & reactive & --- & Infrastructure only \\
+H & Mechanism    & matching algorithm (2 levels) & reactive & 520 & Complete (3 seeds) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Experiment A: Concession Dynamics}
+\label{sec:exp-concession}
+
+\paragraph{Research questions.}
+\begin{itemize}
+    \item[\textbf{RQ-A1.}] Do LLM agents exhibit systematic concession patterns across negotiation rounds?
+    \item[\textbf{RQ-A2.}] How do concession trajectories differ between rule-based, reactive, and deliberative agents?
+    \item[\textbf{RQ-A3.}] Does chain-of-thought prompting (deliberative) alter concession behaviour relative to single-shot prompting (reactive)?
+\end{itemize}
+
+\paragraph{Independent variable.}
+Agent type, varied across three conditions: \texttt{rule\_based}, \texttt{llm\_reactive}, and \texttt{llm\_deliberative}.  Both buyer and seller use the same agent type within each condition.
+
+\paragraph{Controlled variables.}
+All sessions use fixed-mode parameters to isolate the effect of agent type from scenario variation.  The fixed scenario is: buyer value~=~\$120, seller cost~=~\$80, buyer budget~=~\$130, item reference price~=~\$100, seller target margin~=~15\%.  This creates a ZOPA of \$40 (\$120~$-$~\$80), wide enough for reliable settlement.  Maximum rounds~=~10.  Feasibility gate is enabled.
+
+\paragraph{Design.}
+3 agent-type conditions $\times$ 3 seeds $\times$ 50 sessions per seed = 450 sessions total.
+
+\paragraph{Metrics.}
+\begin{itemize}
+    \item Deal rate (\%) per condition.
+    \item Mean agreed price (\$ $\pm$ standard deviation across seeds).
+    \item Mean rounds to settlement.
+    \item Per-round offer price trajectory (concession curve), plotted per agent type and role.
+    \item Buyer and seller surplus.
+    \item Gate involvement rate: fraction of acceptances driven by the feasibility gate rather than agent decision.
+\end{itemize}
+
+\paragraph{Hypotheses.}
+\begin{itemize}
+    \item[\textbf{H-A1.}] All three agent types achieve $>$90\% deal rate given the wide ZOPA.
+    \item[\textbf{H-A2.}] LLM agents settle in fewer rounds than the rule-based agent, whose linear concession formula spreads concessions across the full horizon.
+    \item[\textbf{H-A3.}] The deliberative agent produces different counter-offer prices than the reactive agent, reflecting the effect of structured reasoning on offer generation.
+\end{itemize}
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Experiment B: Anchoring Effects}
+\label{sec:exp-anchoring}
+
+\paragraph{Research questions.}
+\begin{itemize}
+    \item[\textbf{RQ-B1.}] Does ZOPA width---manipulated via buyer value---affect settlement price?
+    \item[\textbf{RQ-B2.}] Do LLM agents exhibit anchoring bias, where the first offer pulls the final price toward it?
+\end{itemize}
+
+\paragraph{Independent variable.}
+Buyer value, varied across three levels: \$100, \$120, and \$150.  Seller cost is fixed at \$80, giving ZOPA widths of \$20, \$40, and \$70 respectively.  Buyer budget is set \$10 above buyer value in each condition (\$110, \$130, \$160) to avoid budget-binding confounds.
+
+\paragraph{Controlled variables.}
+Agent type is \texttt{llm\_reactive} in all conditions.  Seller target margin~=~15\%, item reference price~=~\$100, maximum rounds~=~10, feasibility gate enabled.
+
+\paragraph{Design.}
+3 ZOPA conditions $\times$ 3 seeds $\times$ 50 sessions per seed = 450 sessions total.
+
+\paragraph{Metrics.}
+\begin{itemize}
+    \item Deal rate per ZOPA level.
+    \item Mean settlement price per ZOPA level (\$ $\pm$ standard deviation).
+    \item Mean first offer (buyer's round-0 price) per condition.
+    \item Pearson correlation $r$ between first-offer price and final deal price, computed across all deals.
+    \item Buyer surplus per condition.
+\end{itemize}
+
+\paragraph{Hypotheses.}
+\begin{itemize}
+    \item[\textbf{H-B1.}] Wider ZOPA leads to higher deal rates.  Narrow ZOPA (\$20) may produce deal failure if the seller's opening counter exceeds the buyer's hard cap.
+    \item[\textbf{H-B2.}] If anchoring bias is present, the first-offer/final-price correlation $r$ should be positive and significant: higher first offers should pull settlement prices upward.
+    \item[\textbf{H-B2$'$.}] If the accept-condition block overrides anchoring, settlement prices may be insensitive to first-offer level, yielding $r \approx 0$.
+\end{itemize}
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Experiment C: Deadline Pressure}
+\label{sec:exp-deadline}
+
+\paragraph{Research questions.}
+\begin{itemize}
+    \item[\textbf{RQ-C1.}] Does varying the negotiation horizon (maximum rounds) affect when deals settle?
+    \item[\textbf{RQ-C2.}] Do LLM agents exhibit deadline effects---accelerated concession near the final rounds---consistent with the findings of Roth et al.~\cite{roth1988deadline}?
+\end{itemize}
+
+\paragraph{Independent variable.}
+Maximum rounds per session, varied across three levels: 4, 8, and 16.
+
+\paragraph{Controlled variables.}
+Agent type is \texttt{llm\_deliberative} in all conditions, chosen because the deliberative agent's structured reasoning offers the best opportunity for deadline-aware strategy adjustment.  Fixed scenario parameters match Experiment~A (buyer value~=~\$120, seller cost~=~\$80, ZOPA~=~\$40).  Feasibility gate is enabled.  The prompt includes configurable deadline-salience language that warns the agent when few rounds remain.
+
+\paragraph{Design.}
+3 horizon conditions $\times$ 3 seeds $\times$ 50 sessions per seed = 450 sessions total.
+
+\paragraph{Metrics.}
+\begin{itemize}
+    \item Deal rate per horizon condition.
+    \item Mean settlement round per condition (mean $\pm$ standard deviation).
+    \item Settlement round as a fraction of maximum rounds (normalised timing).
+    \item Share of agreements occurring in the last two rounds of the available horizon.
+\end{itemize}
+
+\paragraph{Hypotheses.}
+\begin{itemize}
+    \item[\textbf{H-C1.}] If agents are deadline-sensitive, longer horizons should produce later settlements (agents use available time) and a disproportionate share of agreements near the deadline.
+    \item[\textbf{H-C1$'$.}] If the feasibility gate dominates settlement timing, the settlement round should be constant regardless of horizon, as the gate fires whenever the standing offer becomes feasible---typically in the first few rounds.
+\end{itemize}
+
+\paragraph{Known confounds.}
+Two design choices work against observing deadline effects.  First, the feasibility gate settles deals as soon as offers become feasible, typically before deadline proximity is relevant.  Second, the prompt steers agents to prefer \textsc{counter} over \textsc{reject}, removing the primary mechanism by which agents could delay settlement.  These confounds are not ablated in this experiment; their implications are discussed in Section~\ref{sec:results}.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Experiment D: Market Price Discovery}
+\label{sec:exp-market}
+
+\paragraph{Research questions.}
+\begin{itemize}
+    \item[\textbf{RQ-D1.}] Does a multi-tick market populated by LLM bilateral negotiators converge toward a stable price level?
+    \item[\textbf{RQ-D2.}] Does price dispersion persist within ticks, consistent with the bilateral bargaining prediction that the Law of One Price fails when pairs negotiate independently~\cite{rubinstein1985}?
+\end{itemize}
+
+\paragraph{Independent variable.}
+Time, observed longitudinally over 30 market ticks.  There is no between-condition manipulation; this is a single-condition observational study.
+
+\paragraph{Controlled variables.}
+The simulator runs in market mode with 15 buyer--seller pairs per tick, using random matching.  Agent type is \texttt{llm\_reactive}.  Scenario mode is \emph{distribution}: buyer values are drawn uniformly from [\$80, \$150], seller costs from [\$50, \$120], buyer budgets from [\$100, \$200], and seller margins from [5\%, 25\%].  Maximum rounds~=~10.  Feasibility gate is enabled.
+
+\paragraph{Design.}
+30 ticks $\times$ 15 sessions per tick = 450 sessions, single seed (42).  This is an exploratory design; results should be interpreted with the single-seed caveat.
+
+\paragraph{Metrics.}
+\begin{itemize}
+    \item Mean transaction price per tick, with within-tick standard deviation.
+    \item Liquidity per tick: fraction of matched pairs that reach a deal.
+    \item Price trend: slope of a simple linear regression of mean price over ticks.
+    \item Mean buyer surplus and mean seller surplus per tick.
+    \item Early-vs-late comparison: mean price and liquidity in ticks 0--4 versus ticks 25--29.
+\end{itemize}
+
+\paragraph{Hypotheses.}
+\begin{itemize}
+    \item[\textbf{H-D1.}] Mean price stabilises within the first 10~ticks, with a near-zero price trend slope thereafter.
+    \item[\textbf{H-D2.}] Within-tick price dispersion remains substantial (standard deviation $>$~\$10), consistent with bilateral bargaining theory.
+    \item[\textbf{H-D3.}] Buyer surplus exceeds seller surplus on average, reflecting the buyer's first-mover advantage in the alternating-offer protocol.
+\end{itemize}
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Experiment E: Shock Response}
+\label{sec:exp-shock}
+
+\paragraph{Research questions.}
+\begin{itemize}
+    \item[\textbf{RQ-E1.}] Do exogenous demand and supply shocks produce measurable shifts in market price and liquidity?
+    \item[\textbf{RQ-E2.}] Is the direction of price adjustment consistent with economic theory (demand increase $\to$ price increase; supply increase $\to$ price decrease)?
+\end{itemize}
+
+\paragraph{Independent variable.}
+Shock condition, varied across two levels: \texttt{no\_shock} (baseline) and \texttt{with\_shock}.  In the shock condition, each tick has a 30\% probability of a shock event.  When a shock fires, buyer values are scaled by a demand multiplier drawn uniformly from [0.7, 1.3] and seller costs are scaled by an independently drawn supply multiplier from the same range.  Budgets are not modified.
+
+\paragraph{Controlled variables.}
+Both conditions use the same market-mode configuration as Experiment~D: 30 ticks, 15 pairs per tick, random matching, distribution-mode parameters, \texttt{llm\_reactive} agents, feasibility gate enabled.
+
+\paragraph{Design.}
+2 conditions $\times$ 30 ticks $\times$ 15 sessions per tick = 900 sessions total, single seed (42).  Exploratory design.
+
+\paragraph{Metrics.}
+\begin{itemize}
+    \item Mean transaction price per tick, compared across conditions.
+    \item Within-tick price standard deviation per condition.
+    \item Mean liquidity per condition, with minimum and maximum tick-level values.
+    \item Price and liquidity differences ($\Delta$) between shock and no-shock conditions.
+\end{itemize}
+
+\paragraph{Hypotheses.}
+\begin{itemize}
+    \item[\textbf{H-E1.}] The shock condition produces higher price volatility (larger tick-to-tick price variance) than the baseline.
+    \item[\textbf{H-E2.}] Mean price and mean liquidity are lower under shocks, because negative shocks (demand multiplier $<$~1 or supply multiplier $>$~1) compress the ZOPA for affected pairs.
+    \item[\textbf{H-E3.}] Worst-case liquidity drops more severely under shocks than best-case liquidity improves, producing an asymmetric tail risk.
+\end{itemize}
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Planned Extensions}
+\label{sec:planned}
+
+Two additional experiment families have full infrastructure implemented in the platform but have not been executed.  Their designs are documented here to support future work and to clarify why the corresponding platform components (reputation store, communication strategies) exist in the codebase.
+
+\subsubsection{Experiment F: Reputation and Repeated Interaction}
+\label{sec:exp-reputation}
+
+\paragraph{Research question.}
+Does access to opponent reputation information improve deal rates and surplus in a repeated-interaction market?
+
+\paragraph{Design overview.}
+The round-robin matcher (Section~\ref{sec:matching}) pairs agents repeatedly across ticks, enabling the reputation agent (Section~\ref{sec:agents}) to accumulate interaction histories.  The reputation store tracks per-opponent deal rate, average price, average negotiation length, and an inferred style label (cooperative, moderate, tough, or unreliable).  This summary is injected into the agent's prompt so it can condition strategy on the opponent's observed behaviour.
+
+\paragraph{Independent variable.}
+Agent type: \texttt{llm\_deliberative} (no reputation) versus \texttt{reputation} (with reputation store).
+
+\paragraph{Metrics.}
+Deal rate, mean price, surplus, and negotiation length, compared between conditions over 30+ ticks.  Of particular interest is whether deal rates improve over time as reputation information accumulates.
+
+\paragraph{Note.}
+The feasibility gate must be disabled for this experiment, as it would mask the strategic adaptation that reputation information is intended to produce.
+
+% TODO: Insert results once experiment completes
+
+\subsubsection{Experiment G: Communication Strategy}
+\label{sec:exp-communication}
+
+\paragraph{Research question.}
+Does the framing and tone of negotiation messages---controlled via prompt-level communication strategies---affect concession speed and settlement price?
+
+\paragraph{Design overview.}
+The platform supports four communication strategies, each implemented as a prompt modifier in the \texttt{PromptConfig}: \emph{neutral} (default factual tone), \emph{assertive} (firm, confident language), \emph{collaborative} (emphasising mutual benefit), and \emph{strategic} (explicit surplus-maximisation framing).  These strategies modify the stylistic guidance in the prompt but do not alter the agent's private constraints or the negotiation protocol.
+
+\paragraph{Independent variable.}
+Communication strategy $\in$ \{neutral, assertive, collaborative, strategic\}, applied to both agents in each session.
+
+\paragraph{Metrics.}
+Deal rate, mean settlement price, mean rounds to settlement, and surplus split across the four conditions.
+
+\paragraph{Note.}
+The feasibility gate should be disabled for this experiment to allow communication-driven effects to manifest over multiple rounds.
+
+% TODO: Insert results once experiment completes
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Experiment H: Market Mechanism Design}
+\label{sec:exp-mechanism}
+
+\paragraph{Research question.}
+Does the matching algorithm affect market-level deal rates, allocative efficiency, welfare, and price dispersion?
+
+\paragraph{Independent variable.}
+Matching algorithm, varied across two conditions: \texttt{random} (baseline, all agents paired regardless of ZOPA) and \texttt{surplus\_max} (oracle, greedy maximum-ZOPA pairing that only matches pairs with positive ZOPA overlap).  The platform additionally implements sorted and round-robin matchers, whose empirical evaluation is deferred to future work.
+
+\paragraph{Controlled variables.}
+The simulator runs in market mode with 10 buyer--seller pairs per tick over 10 ticks.  Agent type is \texttt{llm\_reactive}.  Scenario mode is \emph{distribution}, using the same parameter ranges as Experiments~D and~E (buyer values from [\$80, \$150], seller costs from [\$50, \$120]).  Maximum rounds~=~10.  Feasibility gate is enabled.
+
+\paragraph{Design.}
+2 matching conditions $\times$ 3 seeds (42, 123, 456) $\times$ 10 ticks $\times$ 10 pairs per tick = 520 sessions total (300 random + 220 surplus-max; the surplus-max condition produces fewer sessions because it excludes negative-ZOPA pairs).
+
+\paragraph{Metrics.}
+\begin{itemize}
+    \item Deal rate per condition.
+    \item Mean transaction price and price standard deviation per condition.
+    \item Allocative efficiency: realised welfare as a fraction of theoretically maximum welfare.
+    \item Surplus Gini coefficient: inequality of surplus distribution across deals.
+    \item Mean buyer surplus and mean seller surplus per condition.
+\end{itemize}
+
+\paragraph{Hypotheses.}
+\begin{itemize}
+    \item[\textbf{H-H1.}] Surplus-maximising matching produces a higher deal rate than random matching, because it eliminates structurally infeasible pairs.
+    \item[\textbf{H-H2.}] Surplus-maximising matching produces higher allocative efficiency, because it concentrates trades in high-surplus pairs.
+\end{itemize}

@@ -1,0 +1,9 @@
+\begin{abstract}
+
+We present a controlled experimental platform for evaluating LLM bargaining behaviour in alternating-offer bilateral negotiation under private economic constraints.  Using a single 3B-parameter language model (\texttt{llama3.2:3b}), we conduct six experiments totalling 2,770 negotiation sessions across three categories: micro-level bargaining dynamics (concession curves, anchoring bias, deadline pressure), market-level price discovery (equilibrium convergence, shock response), and institutional mechanism design (matching algorithm comparison).
+
+LLM agents reproduce several structural predictions of classical bargaining and market theory: deal success is determined by the width of the zone of possible agreement, market prices stabilise rapidly with persistent within-tick dispersion, the buyer-first protocol produces systematic surplus asymmetry, and exogenous shocks shift prices and liquidity in theoretically predicted directions.  Surplus-maximising matching improves deal rates by 16 percentage points and allocative efficiency by 5.8 percentage points relative to random matching.  However, agents fail to exhibit two well-documented human bargaining heuristics---anchoring bias and deadline-driven concession acceleration---departures that are informative but heavily confounded by the feasibility gate and prompt design choices that were necessary to make small-model experiments viable.
+
+These findings suggest that market-level outcomes in LLM-agent bilateral bargaining are shaped more by structural and institutional factors---ZOPA width, negotiation protocol, matching mechanism---than by agent sophistication.  All results are specific to a single model and prompt architecture; we identify gate ablation, prompt ablation, and multi-model comparison as the most pressing directions for future work.
+
+\end{abstract}

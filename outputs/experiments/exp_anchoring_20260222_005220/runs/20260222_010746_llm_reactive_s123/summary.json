@@ -1,0 +1,30 @@
+{
+  "total_negotiations": 50,
+  "deals_made": 2,
+  "deal_success_rate": 0.04,
+  "avg_price": 96.4,
+  "median_price": 96.4,
+  "price_std": 0.0,
+  "buyer_surplus_mean": 3.6,
+  "seller_surplus_mean": 16.4,
+  "welfare_mean": 20.0,
+  "avg_rounds_to_close": 3,
+  "avg_rounds_all": 3,
+  "budget_violation_attempts": 48,
+  "cost_violation_attempts": 0,
+  "deadlock_rate": 0.0,
+  "timeouts": 0,
+  "total_risk_events": 48,
+  "scenario_mode": "fixed",
+  "mode": "session",
+  "fixed_params": {
+    "selection": "cycle",
+    "buyer_value": 100.0,
+    "buyer_budget": 110.0,
+    "buyer_patience": 5,
+    "seller_cost": 80.0,
+    "seller_target_margin": 0.15,
+    "seller_patience": 5,
+    "item_reference_price": 100.0
+  }
+}
