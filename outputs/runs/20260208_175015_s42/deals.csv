@@ -1,0 +1,3 @@
+time_step,item_id,item_name,buyer_id,seller_id,deal_made,deal_price,termination_reason,rounds_taken,buyer_value,seller_cost,buyer_surplus,seller_surplus
+0,item_002,Doohickey C,buyer_t0_001,seller_t0_001,False,,timeout,6,79.87,36.56,0.0,0.0
+0,item_003,Thingamajig D,buyer_t0_000,seller_t0_000,False,,rejected,3,100.05,90.15,0.0,0.0

@@ -1,0 +1,12 @@
+time_step,item_id,item_name,buyer_id,seller_id,deal_made,deal_price,termination_reason,rounds_taken,buyer_value,seller_cost,buyer_surplus,seller_surplus
+0,item_000,Widget A,buyer_t0_003,seller_t0_002,True,72.69,accepted,2,145.38,51.83,72.69,20.86
+0,item_004,Gizmo E,buyer_t0_004,seller_t0_001,True,70.26,accepted,2,140.52,55.1,70.26,15.160000000000004
+0,item_001,Gadget B,buyer_t0_001,seller_t0_003,True,88.61,accepted,3,128.47,74.12,39.86,14.489999999999995
+0,item_000,Widget A,buyer_t0_000,seller_t0_004,True,111.42,accepted,5,115.03,91.83,3.6099999999999994,19.590000000000003
+1,item_001,Gadget B,buyer_t1_001,seller_t1_004,True,54.98,accepted,2,127.0,51.98,72.02000000000001,3.0
+1,item_000,Widget A,buyer_t1_002,seller_t1_000,True,97.16,accepted,3,123.85,85.06,26.689999999999998,12.099999999999994
+1,item_002,Doohickey C,buyer_t1_003,seller_t1_003,True,101.8,accepted,7,109.56,85.15,7.760000000000005,16.64999999999999
+2,item_002,Doohickey C,buyer_t2_003,seller_t2_001,True,76.96,accepted,3,139.12,57.53,62.16000000000001,19.429999999999993
+2,item_000,Widget A,buyer_t2_004,seller_t2_000,True,75.29,accepted,3,110.1,62.05,34.80999999999999,13.240000000000009
+2,item_003,Thingamajig D,buyer_t2_000,seller_t2_002,True,93.39,accepted,3,107.37,75.86,13.980000000000004,17.53
+2,item_001,Gadget B,buyer_t2_001,seller_t2_003,True,87.7,accepted,3,106.87,76.78,19.17,10.920000000000002

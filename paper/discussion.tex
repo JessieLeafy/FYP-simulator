@@ -1,0 +1,159 @@
+% ═══════════════════════════════════════════════════════════════════
+%  Section 6 — Discussion
+% ═══════════════════════════════════════════════════════════════════
+
+\label{sec:discussion}
+
+This section interprets the experimental results, situates them relative to prior work, and identifies the limitations of the current study.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{LLM Agents as Bounded Rational Actors}
+\label{sec:disc-rationality}
+
+The six experiments reveal a consistent pattern: LLM agents align with economic theory on outcomes that are structurally determined by the negotiation protocol and private constraints, but fail to reproduce the cognitive heuristics that characterise human bargaining behaviour.
+
+On the structural side, agents reliably produce ZOPA-determined deal success (Experiment~B), stable market prices with persistent within-tick dispersion (Experiment~D), first-mover surplus advantage (Experiments~A and~D), directionally correct responses to supply/demand shocks (Experiment~E), and mechanism-driven efficiency gains (Experiment~H).  These outcomes depend primarily on the existence and width of the zone of possible agreement, the alternating-offer protocol, and the random matching mechanism---not on whether the agent reasons strategically.  A trivially rational agent that accepts any positive-surplus offer would produce similar results in wide-ZOPA scenarios.  The gate, which implements exactly this logic, drives approximately 40\% of all acceptances.
+
+On the heuristic side, agents fail to exhibit anchoring bias ($r = -0.148$, Experiment~B) and deadline-driven concession acceleration (Experiment~C).  In human bargaining, these are well-documented departures from full rationality: humans anchor because they lack complete information about the opponent's constraints~\cite{galinsky2001}, and they concede near deadlines because of time pressure and loss aversion~\cite{roth1988deadline}.  The LLM agents in our experiments do not replicate these patterns.
+
+This suggests a qualitatively different form of bounded rationality.  Human negotiators satisfice using heuristics because full optimisation is computationally intractable.  LLM agents are bounded in a different way---their behaviour is conditioned on the prompt rather than on accumulated experience, and their decisions are shaped by the information explicitly provided to them (including pre-computed utility) rather than by cognitive shortcuts developed through repeated interaction.  Whether this constitutes a form of rationality, a prompt artifact, or both, cannot be determined from the current experiments alone.
+
+We note that this interpretation is tentative.  The null results on anchoring and deadline sensitivity are each confounded by at least two design choices (Section~\ref{sec:disc-gate}), and we cannot rule out that different prompt architectures, larger models, or gate-disabled experiments would produce different results.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{The Role of Prompt Architecture}
+\label{sec:disc-prompt}
+
+The prompt is the LLM agent's entire decision architecture.  Every piece of information included or excluded shapes the agent's behaviour, making prompt design a first-order experimental variable rather than a background condition.
+
+\paragraph{Chain-of-thought and counter-offer conservatism.}
+The clearest prompt-driven effect is the \$7.21 difference between the deliberative and reactive seller counter-offers (Experiment~A).  The deliberative prompt's BELIEFS$\to$TARGET$\to$STRATEGY$\to$ACTION structure leads the model to hold a firmer position on its first counter.  This is consistent with Abdelnabi et al.~\cite{abdelnabi2024llmdeliberation}, who find that deliberation-style prompting improves agreement quality in multi-agent negotiation games.  However, we cannot determine whether the model performs genuine multi-step strategic reasoning or whether the structured format simply constrains the distribution of output prices.  The observation is that structured prompting produces a measurably different---and in economic terms, more conservative---opening position.
+
+\paragraph{Accept-condition block and the anchoring null.}
+The accept-condition block pre-computes the utility of the opponent's standing offer and presents it directly in the prompt.  In human anchoring experiments~\cite{galinsky2001}, the anchoring effect depends on negotiators forming impressions under uncertainty about the opponent's reservation price.  Our agents receive explicit surplus information, potentially overriding any tendency to anchor on the first offer.  This is a plausible explanation for the anchoring null result, but it has not been tested: an ablation that removes the accept-condition block and forces the model to compute utility from raw constraints would be needed to confirm or reject this hypothesis.
+
+\paragraph{Prefer-counter steering and the deadline null.}
+The prompt instruction to prefer \textsc{counter} over \textsc{reject} removes the primary mechanism by which agents could delay settlement.  In combination with the feasibility gate (which settles deals before deadlines approach), this instruction makes deadline sensitivity structurally impossible to observe in the current design.  The instruction was added for a practical reason: without it, small LLMs frequently reject profitable offers, producing meaningless 0\% deal rates.  This illustrates the tension between engineering reliability and experimental cleanliness that pervades LLM agent research.
+
+\paragraph{Prompt as cognitive architecture.}
+These observations point to a broader methodological concern.  In human negotiation research, the cognitive architecture of the bargainer is relatively fixed; experimental variation comes from the task, the opponent, and the information structure.  In LLM negotiation, the prompt \emph{is} the cognitive architecture, and any change to the prompt---adding a reasoning scaffold, including or excluding surplus information, steering toward or away from rejection---can alter outcomes.  This means that LLM negotiation results are inherently prompt-conditional.  Generalising findings across prompt designs requires systematic ablation, which the current study does not provide.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Feasibility Gate: Necessity and Confound}
+\label{sec:disc-gate}
+
+The feasibility gate is the single most important design decision in the platform.  It simultaneously enables and constrains the experimental programme.
+
+\paragraph{Engineering necessity.}
+Small language models (3B parameters) frequently fail to output \textsc{accept} even when the opponent's offer is clearly profitable, a failure mode documented in our early development iterations that motivated the gate's implementation.  Without the gate, wide-ZOPA scenarios produce near-zero deal rates due to LLM output quality rather than strategic behaviour, rendering experimental comparison meaningless.  The gate is not an experimental intervention but a practical prerequisite for conducting experiments with small models.
+
+\paragraph{What the gate masks.}
+In fixed-scenario experiments (A--C), the gate fires at round~2 in every session, limiting concession data to two observations per session and making settlement timing invariant to deadline manipulation.  This is the primary reason Experiment~C produces a null result: deals settle before deadline proximity becomes relevant.  Extended concession trajectories are unobservable, and 100\% deal rates in wide-ZOPA scenarios may reflect gate capability rather than agent capability.
+
+\paragraph{What the gate reveals.}
+The post-LLM override rate of 0\% is itself informative: when the gate does not pre-empt the LLM call, the model never rejects a clearly feasible offer.  This suggests that \texttt{llama3.2:3b} can recognise profitable offers when given explicit constraint information, even if it sometimes fails to generate \textsc{accept} autonomously.
+
+In narrow-ZOPA scenarios (Experiment~B, \texttt{anchor\_low}), the gate cannot fire because the seller's opening counter exceeds the buyer's hard cap.  Here, the LLM must negotiate on its own merits---and it fails 97.3\% of the time.  This is the most direct measure of the model's unassisted negotiation capability: it cannot bridge a \$20 ZOPA when the opponent's opening position is outside the zone of agreement.
+
+\paragraph{Recommendations.}
+The gate should be treated as a controllable experimental variable in future work.  Gate-on versus gate-off ablation studies would reveal the extent to which deal rates, concession trajectories, and settlement timing are agent-driven versus mechanically enforced.  For experiments targeting deadline pressure, multi-round concession dynamics, or communication effects (Experiments~F and~G), the gate should be disabled, with the resulting lower deal rates accepted as part of the measurement rather than engineered away.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Institutional Mechanism Effects}
+\label{sec:disc-mechanism}
+
+Experiment~H demonstrates that the matching mechanism---an institutional design choice external to the agents---has a substantial effect on market outcomes.  Surplus-maximising matching improves deal rates by 16 percentage points and allocative efficiency by 5.8 percentage points relative to random matching, while also reducing price dispersion.  These gains arise entirely from pair selection: the mechanism filters out low-ZOPA pairs before negotiation begins, ensuring that LLM agents face problems they can solve.
+
+This finding reinforces the broader pattern observed across experiments: market-level outcomes are shaped more by structural and institutional factors (ZOPA width, protocol, matching mechanism) than by agent sophistication.  The surplus-maximising matcher is an oracle mechanism---it requires knowledge of both parties' private constraints---and is therefore not directly deployable in practice.  However, it establishes an upper bound on the efficiency gains achievable through mechanism design in LLM-agent markets.  Whether practical approximations (e.g., sorted matching by announced preferences) can capture a portion of these gains without requiring private information remains an open question for future work.
+
+The asymmetric surplus distribution under surplus-maximising matching---buyer surplus rises 38\% while seller surplus is essentially unchanged---suggests that mechanism design interacts with the first-mover protocol.  Wider ZOPAs created by better matching amplify the buyer's first-mover advantage rather than distributing surplus equally.  This has implications for mechanism designers seeking both efficiency and equity in automated negotiation markets.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Comparison to Prior Work}
+\label{sec:disc-prior}
+
+We compare our findings to the prior work reviewed in Section~\ref{sec:related}.
+
+\paragraph{Generative agent simulations.}
+Park et al.~\cite{park2023generative} demonstrated that LLM agents exhibit emergent social behaviours in open-ended environments.  Our market experiments (D and~E) extend this paradigm to economic settings: LLM agents produce emergent market structure---stable price equilibrium, persistent price dispersion, and surplus asymmetry---without being explicitly programmed to produce these aggregate outcomes.  The key difference is that our environment is constrained (hard budget and cost limits, structured protocol) rather than open-ended, enabling direct comparison against theoretical predictions.
+
+\paragraph{LLM negotiation.}
+Abdelnabi et al.~\cite{abdelnabi2024llmdeliberation} find that deliberation prompting improves agreement quality in multi-party, multi-issue negotiation games.  Our Experiment~A provides a complementary finding in a simpler setting: deliberative prompting produces more conservative counter-offers (\$7.21 difference), which is consistent with improved strategic positioning though we observe it through a different metric (offer price rather than Pareto efficiency).  We note that our setting is single-issue bilateral bargaining, which isolates price dynamics from the issue-trading effects present in their multi-issue design.
+
+Mao et al.~\cite{mao2024personalities} show that personality-assigned prompts shift negotiation outcomes.  Our prefer-counter instruction and communication strategies function similarly as prompt-level modifiers.  The methodological difference is that we disclose prompt steering as a confound rather than studying it as a controlled variable, though the infrastructure for the communication-strategy experiment (Experiment~G) exists for future work.
+
+Lewis et al.~\cite{lewis2017dealornodeal} found that end-to-end trained negotiation agents develop non-human-like strategies, including degenerate repetitive behaviour.  Our LLM agents show a different form of departure from human norms: rather than degenerating, they fail to reproduce specific human heuristics (anchoring, deadline pressure) while maintaining otherwise reasonable bargaining behaviour.  The underlying mechanism differs---Lewis et al.'s agents are trained via reinforcement learning and self-play, while ours are prompted---but both findings suggest that artificial agents do not spontaneously replicate the full spectrum of human negotiation behaviour.
+
+\paragraph{Classical theory.}
+Our positive results confirm several qualitative predictions from bilateral bargaining theory.  Market prices stabilise rapidly and exhibit persistent within-tick dispersion (consistent with Rubinstein and Wolinsky~\cite{rubinstein1985}), ZOPA width determines deal feasibility (consistent with Raiffa~\cite{raiffa1982}), and the buyer-first protocol produces buyer-favourable surplus splits (consistent with first-mover advantage in alternating-offer models~\cite{rubinstein1982}).  Shocks reduce prices and liquidity in directions consistent with supply and demand theory, though the magnitudes are modest and from a single-seed run.
+
+Our null results depart from two well-established human findings.  The absence of anchoring bias contradicts Galinsky and Mussweiler~\cite{galinsky2001}, though the departure is plausibly explained by the prompt's provision of explicit surplus information---a condition that does not hold in human experiments.  The absence of deadline sensitivity contradicts Roth et al.~\cite{roth1988deadline}, though this result is heavily confounded by the feasibility gate and prompt steering, and should not be interpreted as evidence that LLM agents lack the capacity for deadline awareness under different experimental conditions.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Limitations}
+\label{sec:disc-limitations}
+
+We identify ten limitations of the current study, ordered by their impact on the interpretation of results.
+
+\begin{enumerate}
+    \item \textbf{Single model.}  All results are specific to \texttt{llama3.2:3b} at temperature~0.2.  Larger models, different architectures, or fine-tuned models may exhibit anchoring bias, deadline sensitivity, or other behaviours absent in our experiments.  No cross-model comparison is provided.
+
+    \item \textbf{Gate dominance.}  In wide-ZOPA scenarios, the feasibility gate drives all acceptances.  Deal rates and settlement timing in Experiments~A--C reflect gate logic rather than agent decision-making.  Without gate ablation, agent capability cannot be separated from gate enforcement.
+
+    \item \textbf{Two-round data.}  The gate fires at round~2 in all fixed-scenario sessions, yielding only two data points per session for concession analysis.  Multi-round concession dynamics---the core phenomenon the concession experiment was designed to study---are not observed.
+
+    \item \textbf{No prompt ablation.}  The accept-condition block, prefer-counter steering, and deadline-salience language are all active but none are individually ablated.  Their separate effects on anchoring, deal rates, and deadline sensitivity are unknown.
+
+    \item \textbf{Single seed for market experiments.}  Experiments~D and~E use seed~42 only.  The specific agent pairings, ZOPA distributions, and shock realisations are fixed.  Results are suggestive but not confirmatory.
+
+    \item \textbf{Confounded anchoring design.}  The independent variable in Experiment~B simultaneously manipulates ZOPA width and first-offer level.  The Pearson $r$ metric partially addresses this, but anchoring cannot be fully isolated from ZOPA feasibility effects.
+
+    \item \textbf{No statistical tests.}  All analyses are descriptive (means, standard deviations, Pearson $r$).  No hypothesis tests, confidence intervals, or effect sizes are reported.  The three-seed design in Experiments~A--C provides limited replication; Experiments~D--E have no replication.
+
+    \item \textbf{Single-price negotiation.}  All sessions negotiate a single price.  Real markets involve quality, delivery terms, and bundling.  Multi-issue negotiation may produce qualitatively different dynamics, including the logrolling and issue-trading effects studied by Lewis et al.~\cite{lewis2017dealornodeal}.
+
+    \item \textbf{No cross-run learning.}  Agents do not accumulate experience across sessions within the completed experiments.  The memory and reputation agents are implemented but untested.  Whether LLM agents adapt strategies over repeated interactions remains an open question.
+
+    \item \textbf{LLM non-determinism.}  Even at temperature~0.2, model outputs are not fully deterministic.  The seeded RNG controls market-level randomness (population generation, matching, shocks) but not LLM inference randomness.  This introduces uncontrolled variance into all LLM-agent conditions.
+\end{enumerate}
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Implications}
+\label{sec:disc-implications}
+
+\paragraph{For automated negotiation deployment.}
+LLM agents settle bilateral deals reliably when the ZOPA is wide, but fail at a 97.3\% rate when the ZOPA narrows to \$20 (Experiment~B).  Practical systems that deploy LLM negotiators should estimate ZOPA width before entering negotiation, and provide deterministic fallbacks---analogous to our feasibility gate---for scenarios where the model is likely to fail.  The absence of anchoring bias may be advantageous in adversarial settings (the LLM will not be manipulated by aggressive first offers), though it also means the LLM will not exploit anchoring strategically.
+
+\paragraph{For experimental methodology.}
+The feasibility gate illustrates a general tension in LLM agent research: engineering interventions that make experiments viable can simultaneously mask the behaviours those experiments are designed to study.  Researchers using LLM agents in structured settings should treat such interventions as controllable variables, report their involvement rates, and conduct ablation studies to separate agent capability from system-level enforcement.
+
+Prompt architecture is a first-order experimental variable.  Our results show that including or excluding specific information (accept-condition block, reasoning scaffold) produces measurable differences in bargaining behaviour.  LLM negotiation results should be understood as prompt-conditional, and claims about LLM negotiation behaviour in general should be hedged accordingly.
+
+\paragraph{For economic theory.}
+The positive results suggest that certain market-level predictions of bilateral bargaining theory---price convergence, price dispersion, first-mover advantage, directional shock response---are robust to the specific cognitive architecture of the agents.  These properties emerge from the structure of bilateral bargaining itself (independent pairwise negotiation, private constraints, alternating offers) rather than from agent sophistication.  A 3B-parameter model produces qualitatively similar market structure to what theory predicts for rational agents, not because it is rational, but because the protocol and constraints do most of the work.
+
+This is a modest finding.  It does not demonstrate that LLM agents are economically rational, nor that they can substitute for human participants in experimental economics.  It demonstrates that the structural predictions of bilateral bargaining theory hold under a relatively weak rationality assumption---that agents accept offers yielding positive surplus when explicitly informed of that surplus---which the gate enforces and the LLM, when queried, also satisfies.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Future Work}
+\label{sec:disc-future}
+
+Several directions would strengthen and extend the current findings.
+
+\paragraph{Gate and prompt ablation.}
+The most immediate priority is to repeat Experiments~A--C with the gate disabled and to separately ablate the accept-condition block, prefer-counter steering, and deadline-salience language.  This would reveal which null results are gate artifacts and which reflect intrinsic LLM behaviour.
+
+\paragraph{Multi-model comparison.}
+Repeating key experiments with models of different sizes (7B, 13B, 70B) and architectures would test whether anchoring bias and deadline sensitivity emerge at larger scales.  This is the single most important external-validity question.
+
+\paragraph{Experiments F and G.}
+The platform supports two additional experiment families---reputation and repeated interaction (Experiment~F) and communication strategy ablation (Experiment~G)---for which infrastructure is implemented but empirical evaluation is deferred.  These experiments should disable the gate to allow strategic adaptation and prompt-driven effects to manifest.
+
+\paragraph{Multi-seed market experiments.}
+Experiments~D and~E should be replicated across multiple seeds to assess whether the market-level findings (price convergence, surplus asymmetry, shock response) are robust or specific to the seed-42 random matching.
+
+\paragraph{Statistical analysis.}
+Formal hypothesis tests, confidence intervals, and effect-size measures would strengthen the evidential basis of the current findings.  The three-seed design in Experiments~A--C supports seed-level analysis of variance; the single-seed market experiments require additional replication before statistical testing is meaningful.
+
+\paragraph{Human--LLM comparison.}
+Running the same experimental conditions with human participants would enable direct comparison of bargaining behaviour.  This would clarify whether the absence of anchoring and deadline effects is specific to LLMs or whether it extends to any agent operating with explicit constraint information.

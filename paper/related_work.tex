@@ -1,0 +1,50 @@
+\section{Related Work}
+\label{sec:related}
+
+This work sits at the intersection of three research threads: LLM-based agent simulation, LLM negotiation, and classical bargaining theory.  We review each in turn and identify the gap that motivates our platform.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{LLM-Based Agent Simulation}
+\label{sec:rw_simulation}
+
+The demonstration that large language models can drive believable autonomous agents has opened a productive line of simulation research.  Park et al.~\cite{park2023generative} introduced \emph{Generative Agents}, showing that LLM-powered characters in a sandbox environment exhibit emergent social behaviours---forming relationships, spreading information, coordinating activities---without explicit scripting.  This established that LLMs can serve as plausible behavioural engines for agent-based simulation, though the focus was on open-ended social dynamics rather than economic decision-making under constraints.
+
+Subsequent systems extended this paradigm to larger populations and more structured settings.  S3~\cite{gao2023s3} simulates social-network dynamics with LLM agents, studying information diffusion and opinion formation.  AgentSociety~\cite{pang2025agentsociety} scales LLM-driven generative agents to large populations to study emergent social phenomena including economic behaviours.  Williams and Hosseinmardi~\cite{williams2023epidemic} applied generative agents to epidemic modelling, demonstrating that LLM agents can reproduce stylised public-health dynamics when placed in structured environments.  Gao et al.~\cite{gao2024survey} survey the broader landscape of LLM-empowered agent-based modelling, identifying economic simulation as a high-potential but under-explored application area.
+
+In parallel, frameworks for agentic LLM behaviour have matured rapidly.  ReAct~\cite{yao2023react} introduced a reasoning-and-acting paradigm in which models interleave chain-of-thought reasoning with environment actions---a pattern our deliberative agent adapts for structured negotiation reasoning.  Multi-agent orchestration frameworks such as AutoGen~\cite{wu2023autogen} provide general infrastructure for LLM agent interaction, but target open-ended tool use rather than controlled economic experiments.  Our platform differs from these systems by embedding agents in a well-defined bilateral bargaining protocol with hard economic constraints, enabling experiments that can be compared directly against classical theory.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{LLMs in Negotiation and Bargaining}
+\label{sec:rw_negotiation}
+
+Negotiation is among the earliest testbeds for learned agents.  Lewis et al.~\cite{lewis2017dealornodeal} introduced end-to-end trained neural negotiation agents using reinforcement learning and self-play on a multi-issue bargaining task, demonstrating that learned models can reach agreements but also degenerate into non-human-like strategies.  Their work predates LLM-based approaches and uses task-specific training; our agents are prompted, not trained, and negotiate a single price under private constraints rather than trading across multiple issues.
+
+With the advent of large language models, several works have studied LLM behaviour in negotiation settings.  Abdelnabi et al.~\cite{abdelnabi2024llmdeliberation} evaluate LLMs in interactive multi-agent negotiation games, finding that models can reach Pareto-efficient outcomes and that deliberation-style prompting improves agreement quality.  Their focus on multi-issue, multi-party games complements our single-issue bilateral design, which isolates price dynamics from issue-trading effects.  The finding that structured reasoning aids negotiation quality connects to the chain-of-thought prompting literature~\cite{wei2022chain} and motivates the deliberative agent design in our platform.
+
+Mao et al.~\cite{mao2024personalities} study LLM agents with assigned personality traits in multi-issue negotiation games, finding that personality prompts measurably shift outcomes.  This motivates our communication-strategy ablation, though we vary prompting strategy rather than personality and measure the effect on bilateral price.  Chawla et al.~\cite{chawla2023assistive} develop assistive LLM agents for socially-aware negotiation dialogues, emphasising cooperative and empathetic communication in human-AI interaction; our agents negotiate autonomously with structured JSON actions, prioritising experimental control over dialogue realism.
+
+Two further works address LLM negotiation from a market perspective.  Amato et al.~\cite{amato2024socialbehavior} simulate LLM-based autonomous negotiator agents within a game-theoretical framework, studying social behaviour and strategic interaction.  Davidson et al.~\cite{davidson2024automatedrisky} model agent-to-agent negotiations in consumer markets, highlighting both the potential and risks of automated LLM negotiation.  Both examine richer market environments than ours; our contribution is the systematic connection between micro-level bargaining behaviour and macro-level market outcomes within a single controlled platform.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Classical Bargaining and Market Theory}
+\label{sec:rw_theory}
+
+Our experimental design tests several well-established predictions from bargaining and market theory.
+
+Rubinstein's~\cite{rubinstein1982} alternating-offer model provides the protocol framework: two agents exchange offers sequentially, with the more patient agent extracting a larger share of surplus.  We test whether LLM agents reproduce this patience effect by comparing reactive and deliberative agent types.
+
+The anchoring literature, originating with Tversky and Kahneman~\cite{tversky1974} and refined in negotiation contexts by Galinsky and Mussweiler~\cite{galinsky2001}, predicts that first offers bias final agreements.  Our anchoring experiment tests this prediction in LLM agents and finds a null result---a departure from human behaviour that is theoretically informative.
+
+Roth, Murnighan, and Schoumaker~\cite{roth1988deadline} established that human bargainers make disproportionately large concessions near deadlines.  We test this prediction by varying time horizons with LLM agents. %[VERIFY: correct cite is Roth, Murnighan, Schoumaker 1988 AER, not the 1978 paper]
+
+At the market level, Rubinstein and Wolinsky~\cite{rubinstein1985} showed that decentralised bilateral bargaining markets converge to equilibrium prices but exhibit persistent price dispersion, predicting that the Law of One Price fails under bilateral matching.  Our market dynamics experiment tests whether LLM markets replicate this structure.  Raiffa's~\cite{raiffa1982} concept of the zone of possible agreement (ZOPA) is central to our feasibility gate and to the finding that ZOPA width is the primary determinant of deal success in LLM negotiations.
+
+On the computational side, Zheng et al.~\cite{zheng2020aieconomist} demonstrate that multi-agent reinforcement learning can discover effective economic policies in simulated economies, establishing a precedent for using AI agents to study economic mechanisms.  Our matching-mechanism experiments are motivated by this line of work, though we use prompted LLM agents rather than RL-trained ones.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Positioning}
+\label{sec:rw_positioning}
+
+Our platform provides a controlled experimental testbed for evaluating LLM bargaining behaviour under economic constraints.  It connects three levels of analysis within a single system: (i)~micro-level agent behaviour (concession dynamics, anchoring, deadline response), (ii)~macro-level market outcomes (price equilibrium, liquidity, surplus distribution, shock response), and (iii)~mechanism-design interventions (matching strategies, communication strategies, reputation systems).  Existing work typically addresses one of these levels; we span all three using the same agents and protocol, so that the link from individual bargaining behaviour to aggregate market properties can be traced.
+
+The contribution is methodological and empirical rather than algorithmic.  We do not propose a new model architecture, a novel learning algorithm, or a fully realistic market simulator.  Instead, we provide a reproducible platform with hard safety guarantees---constraint enforcement, feasibility gates, deterministic fallbacks---that enables systematic comparison of LLM behaviour against classical bargaining predictions, and honest reporting of both confirmations and null results.

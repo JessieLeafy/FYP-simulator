@@ -3,15 +3,15 @@
 **Project:** FYP — Multi-Agent Negotiation & Trading Simulation
 **Model:** `llama3.2:3b` via Ollama (local inference)
 **Framework:** Custom Python simulation (6-layer architecture)
-**Git commit:** `bc36a41`
-**Total sessions:** 2,250 across 5 experiments (fully complete)
-**Report date:** 2026-02-22
+**Git commit:** `bc36a41` (Experiments A–E), `72e280b` (Experiment H)
+**Total sessions:** 2,770 across 6 experiments (fully complete)
+**Report date:** 2026-03-07
 
 ---
 
 ## Abstract
 
-This report presents empirical results from a multi-agent bilateral negotiation simulator in which large language model (LLM) agents engage in alternating-offer bargaining over a single commodity. Five structured experiments were conducted to evaluate whether LLM agents exhibit economically rational bargaining behaviour consistent with classical theory: concession dynamics (Rubinstein 1982), anchoring bias (Tversky & Kahneman 1974), deadline pressure effects (Roth & Murnighan 1978), and market price discovery. Results show that LLM agents exhibit rational concession patterns and respond appropriately to zone-of-agreement width, but fail to exhibit anchoring bias or deadline-driven concession behaviour — departures from human norms that are theoretically significant and worth reporting as null results. Market dynamics experiments confirm stable price equilibrium and realistically dispersed prices consistent with bilateral bargaining theory.
+This report presents empirical results from a multi-agent bilateral negotiation simulator in which large language model (LLM) agents engage in alternating-offer bargaining over a single commodity. Six experiments were conducted to evaluate whether LLM agents exhibit economically rational bargaining behaviour consistent with classical theory: concession dynamics (Rubinstein 1982), anchoring bias (Tversky & Kahneman 1974), deadline pressure effects (Roth & Murnighan 1978), market price discovery, and institutional mechanism design effects. Results show that LLM agents exhibit rational concession patterns and respond appropriately to zone-of-agreement width, but fail to exhibit anchoring bias or deadline-driven concession behaviour — departures from human norms that are theoretically significant and worth reporting as null results. Market dynamics experiments confirm stable price equilibrium and realistically dispersed prices consistent with bilateral bargaining theory. Surplus-maximising matching improves deal rates (+16 pp) and allocative efficiency (+5.8 pp) relative to random matching, with gains accruing disproportionately to buyers.
 
 ---
 
@@ -24,6 +24,7 @@ This report presents empirical results from a multi-agent bilateral negotiation 
 3. Do LLM agents respond to deadline pressure by making larger late concessions?
 4. Does a market of LLM bilateral negotiators converge to a stable price equilibrium?
 5. How do exogenous supply/demand shocks affect market price and liquidity?
+6. Does the buyer–seller matching mechanism affect deal rates, allocative efficiency, and surplus distribution?
 
 ### 1.2 Agent Types
 
@@ -272,9 +273,57 @@ Within-tick price standard deviation is nearly identical across conditions. This
 
 ---
 
-## 8. Cross-Experiment Discussion
+## 8. Experiment H — Market Mechanism Comparison
 
-### 8.1 Where LLM Agents Behave Rationally
+### 8.1 Design
+
+**Research question:** Does the buyer–seller matching algorithm affect market-level deal rates, allocative efficiency, welfare, and price dispersion?
+
+- **Conditions:** `random` (baseline) vs. `surplus_max` (oracle, greedy maximum-ZOPA pairing)
+- **Mode:** Market simulation, 10 ticks, 10 buyer–seller pairs per tick
+- **Agent type:** `llm_reactive`
+- **Scenario:** Distribution mode (heterogeneous buyers/sellers)
+- **Seeds:** 42, 123, 456 (3 replications)
+- **Gate:** Enabled
+- **Total sessions:** 520 (300 random + 220 surplus_max)
+
+The surplus-maximising matcher pairs buyers and sellers in descending order of ZOPA width, only matching pairs with positive ZOPA. It therefore produces fewer sessions per tick than random matching (which pairs all agents regardless of ZOPA), but a higher proportion of those sessions have the structural preconditions for a deal.
+
+### 8.2 Results
+
+**Table 7. Market mechanism comparison: random vs. surplus_max (10 ticks × 10 pairs × 3 seeds)**
+
+| Metric | `random` | `surplus_max` | Δ |
+|---|---|---|---|
+| Total sessions | 300 | 220 | −80 (ZOPA+ pairs only) |
+| Deals made | 167 | 158 | −9 |
+| Deal rate | **55.7%** | **71.8%** | **+16.1 pp** |
+| Mean price | $91.47 | $87.24 | −$4.23 |
+| Price std | $18.60 | $16.45 | −$2.15 |
+| Allocative efficiency | **0.840** | **0.897** | **+0.057** |
+| Surplus Gini | 0.226 | 0.216 | −0.010 |
+| Buyer surplus (mean) | $30.54 | $42.25 | +$11.71 |
+| Seller surplus (mean) | $17.39 | $16.17 | −$1.22 |
+
+### 8.3 Interpretation
+
+**Finding 15 — Surplus-maximising matching improves deal rates by eliminating structurally infeasible pairs.**
+The surplus_max matcher achieves a 71.8% deal rate compared to 55.7% for random matching (+16.1 pp). This improvement is largely mechanical: random matching produces pairs with negative ZOPA (buyer value < seller cost) where no deal is possible regardless of agent capability, while surplus_max only forms pairs with positive ZOPA. The raw deal count is similar (158 vs. 167), but surplus_max achieves this from 80 fewer sessions.
+
+**Finding 16 — Allocative efficiency improves under surplus-maximising matching.**
+Allocative efficiency rises from 0.840 to 0.897 (+5.7 pp). The surplus_max matcher pairs agents with the largest ZOPAs first, concentrating trading opportunities where the most welfare can be realised. This is consistent with the theoretical prediction that informed matching mechanisms improve welfare relative to random assignment.
+
+**Finding 17 — Surplus gains accrue primarily to buyers.**
+Buyer surplus increases by $11.71 (from $30.54 to $42.25, +38%) while seller surplus is essentially unchanged ($17.39 to $16.17). The larger ZOPAs created by surplus_max matching provide more room for the first-mover buyer advantage to operate, amplifying the buyer-side surplus concentration already observed in Experiment D. Prices are slightly lower under surplus_max ($87.24 vs. $91.47), consistent with buyers capturing the additional surplus.
+
+**Finding 18 — Price dispersion is slightly lower under surplus-maximising matching.**
+Within-tick price standard deviation decreases from $18.60 to $16.45 under surplus_max. This modest reduction suggests that more homogeneous ZOPA widths (a consequence of greedy pairing by ZOPA size) produce slightly more uniform transaction prices, though dispersion remains substantial under both conditions.
+
+---
+
+## 9. Cross-Experiment Discussion
+
+### 9.1 Where LLM Agents Behave Rationally
 
 | Economic principle | Evidence |
 |---|---|
@@ -285,8 +334,10 @@ Within-tick price standard deviation is nearly identical across conditions. This
 | First-mover buyer advantage | Buyer surplus ($32.95) > seller surplus ($16.40) |
 | Shocks reduce price and liquidity | −$2.15 price, −3.1pp liquidity under shocks (supply/demand theory confirmed) |
 | Negative shocks dominate volatility | Worst-case liquidity drops 13.4pp; best-case unchanged (asymmetric shock effect) |
+| Mechanism → efficiency gain | +5.8 pp allocative efficiency under surplus-max matching |
+| Mechanism → deal rate gain | +16.1 pp deal rate under surplus-max matching |
 
-### 8.2 Where LLM Agents Depart from Classical Predictions
+### 9.2 Where LLM Agents Depart from Classical Predictions
 
 | Predicted behaviour | Observed behaviour | Interpretation |
 |---|---|---|
@@ -295,7 +346,7 @@ Within-tick price standard deviation is nearly identical across conditions. This
 | Law of One Price in large market | Persistent $20 within-tick dispersion | Expected under bilateral bargaining; LLM replicates human market structure |
 | Shocks increase price dispersion | σ unchanged ($20.36 vs. $19.55) | Bilateral bargaining protocol, not ZOPA width, drives within-tick variance |
 
-### 8.3 Role of the Feasibility Gate
+### 9.3 Role of the Feasibility Gate
 
 The feasibility gate is the single most important design decision affecting results:
 
@@ -305,7 +356,7 @@ The feasibility gate is the single most important design decision affecting resu
 
 ---
 
-## 9. Limitations
+## 10. Limitations
 
 1. **Single model evaluated.** All results are specific to `llama3.2:3b`. Larger or fine-tuned models may exhibit stronger anchoring bias or deadline sensitivity.
 
@@ -317,11 +368,13 @@ The feasibility gate is the single most important design decision affecting resu
 
 5. **No cross-run learning.** Memory agents were not used in these experiments; agents do not accumulate experience across negotiation sessions.
 
-6. **No multi-issue negotiation.** All sessions negotiate a single price. Real markets involve quality, delivery, terms, etc.
+6. **Partial mechanism coverage.** Experiment H tests only random and surplus-maximising matching. The sorted and round-robin matchers are implemented but not empirically evaluated.
+
+7. **No multi-issue negotiation.** All sessions negotiate a single price. Real markets involve quality, delivery, terms, etc.
 
 ---
 
-## 10. Conclusions
+## 11. Conclusions
 
 This study demonstrates that a custom multi-agent negotiation simulator with LLM agents can produce economically meaningful and reproducible results. Key conclusions:
 
@@ -336,6 +389,8 @@ This study demonstrates that a custom multi-agent negotiation simulator with LLM
 5. **LLM markets replicate theoretical bilateral bargaining structure.** Stable equilibrium prices, persistent price dispersion, and buyer-side surplus advantage all match predictions from classical bilateral bargaining theory.
 
 6. **Supply/demand shocks produce directionally correct but asymmetric effects.** Shocks lower mean prices and reduce average liquidity, consistent with supply/demand theory. Critically, negative shocks create severe liquidity drops (worst-case 13.3% vs. 26.7%) while positive shocks cannot push liquidity above the random-matching ceiling — an asymmetry with implications for market resilience design.
+
+7. **Matching mechanism design improves market efficiency.** Surplus-maximising matching raises deal rates by 16 pp and allocative efficiency by 5.8 pp relative to random matching, but the gains accrue disproportionately to buyers (+38% surplus) while seller surplus is essentially unchanged. Mechanism design interacts with first-mover protocol effects.
 
 These findings collectively suggest that LLM agents are capable economic agents in simple bilateral settings, but require carefully designed guardrails (feasibility gates, constraint injection) to reliably settle. Their departures from human bargaining heuristics (no anchoring, no deadline pressure) are theoretically informative and potentially advantageous in adversarial settings.
 
@@ -352,6 +407,7 @@ These findings collectively suggest that LLM agents are capable economic agents 
 | Deadline | `exp_deadline.yaml` | llm_deliberative | 450 | 42, 123, 456 |
 | Market dynamics | `exp_market_dynamics.yaml` | llm_reactive | 450 (30 ticks × 15) | 42 |
 | Shock response | `exp_shock_response.yaml` | llm_reactive | 900 (2 cond × 30 × 15) | 42 | ✓ complete |
+| Mechanism | `exp_mechanism.yaml` | llm_reactive | 520 (300 random + 220 surplus_max) | 42, 123, 456 | ✓ complete |
 
 ### B. LLM Backend
 

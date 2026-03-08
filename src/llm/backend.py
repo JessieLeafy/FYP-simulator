@@ -43,13 +43,7 @@ class OllamaLLMBackend:
             })
             self._opener = urllib.request.build_opener(proxy_handler)
         else:
-            # Explicitly bypass any system-level proxy (ALL_PROXY, HTTPS_PROXY,
-            # etc.) when no explicit proxy is configured.  Ollama typically runs
-            # on localhost; routing through a system proxy causes connection
-            # failures even though the server is reachable directly.
-            self._opener = urllib.request.build_opener(
-                urllib.request.ProxyHandler({})
-            )
+            self._opener = urllib.request.build_opener()
         self._call_count = 0
 
     def generate(self, prompt: str, **overrides: Any) -> str:
