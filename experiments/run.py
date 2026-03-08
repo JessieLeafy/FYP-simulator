@@ -61,7 +61,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--experiment", type=str, default="none",
         choices=[
             "none", "concession", "anchoring", "deadline",
-            "market_dynamics", "shock_response",
+            "market_dynamics", "shock_response", "supply_demand",
         ],
         help="Run a structured experiment instead of a single simulation",
     )
