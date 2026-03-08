@@ -1,0 +1,46 @@
+{
+  "experiment": "supply_demand",
+  "conditions": [
+    "baseline",
+    "demand_shock",
+    "supply_shock"
+  ],
+  "seeds": [
+    42,
+    123
+  ],
+  "total_condition_seed_runs": 6,
+  "condition_summaries": {
+    "baseline": {
+      "avg_buyer_value": 115.0,
+      "avg_seller_cost": 85.0,
+      "mean_price": 86.82,
+      "liquidity": 0.54,
+      "total_welfare": 49.28,
+      "buyer_surplus": 33.48,
+      "seller_surplus": 15.81,
+      "price_dispersion": 14.3
+    },
+    "demand_shock": {
+      "avg_buyer_value": 135.0,
+      "avg_seller_cost": 85.0,
+      "mean_price": 87.93,
+      "liquidity": 0.66,
+      "total_welfare": 62.05,
+      "buyer_surplus": 47.14,
+      "seller_surplus": 14.91,
+      "price_dispersion": 14.75
+    },
+    "supply_shock": {
+      "avg_buyer_value": 115.0,
+      "avg_seller_cost": 105.0,
+      "mean_price": 103.34,
+      "liquidity": 0.24,
+      "total_welfare": 43.53,
+      "buyer_surplus": 19.29,
+      "seller_surplus": 24.25,
+      "price_dispersion": 9.44
+    }
+  },
+  "git_hash": "30f61d4"
+}

@@ -1,0 +1,26 @@
+time_step,item_id,item_name,buyer_id,seller_id,deal_made,deal_price,termination_reason,rounds_taken,buyer_value,seller_cost,buyer_surplus,seller_surplus
+0,item_001,Gadget B,buyer_t0_004,seller_t0_002,False,,rejected,3,138.39,102.78,0.0,0.0
+0,item_003,Thingamajig D,buyer_t0_003,seller_t0_003,True,125.3,accepted,3,166.43,89.5,41.13000000000001,35.8
+0,item_004,Gizmo E,buyer_t0_001,seller_t0_004,True,100.8,accepted,3,139.07,77.54,38.269999999999996,23.25999999999999
+0,item_002,Doohickey C,buyer_t0_002,seller_t0_000,True,116.9,accepted,3,159.43,99.07,42.53,17.830000000000013
+0,item_004,Gizmo E,buyer_t0_000,seller_t0_001,True,86.48,accepted,3,102.24,67.56,15.759999999999991,18.92
+1,item_000,Widget A,buyer_t1_000,seller_t1_004,False,,rejected,3,147.07,115.4,0.0,0.0
+1,item_004,Gizmo E,buyer_t1_001,seller_t1_000,True,60.95,accepted,2,121.89,55.9,60.94,5.050000000000004
+1,item_000,Widget A,buyer_t1_004,seller_t1_002,True,67.23,accepted,2,134.46,54.52,67.23,12.71
+1,item_002,Doohickey C,buyer_t1_003,seller_t1_001,True,54.85,accepted,2,109.7,53.35,54.85,1.5
+1,item_000,Widget A,buyer_t1_002,seller_t1_003,True,62.58,accepted,2,151.16,59.14,88.58,3.4399999999999977
+2,item_000,Widget A,buyer_t2_000,seller_t2_004,True,66.02,accepted,2,137.67,51.02,71.64999999999999,14.999999999999993
+2,item_001,Gadget B,buyer_t2_003,seller_t2_003,True,72.78,accepted,2,152.58,69.21,79.80000000000001,3.5700000000000074
+2,item_004,Gizmo E,buyer_t2_001,seller_t2_002,True,93.52,accepted,3,143.89,75.42,50.36999999999999,18.099999999999994
+2,item_001,Gadget B,buyer_t2_002,seller_t2_000,True,78.58,accepted,3,104.04,57.78,25.460000000000008,20.799999999999997
+2,item_000,Widget A,buyer_t2_004,seller_t2_001,True,78.94,accepted,2,164.99,75.79,86.05000000000001,3.1499999999999915
+3,item_003,Thingamajig D,buyer_t3_004,seller_t3_000,True,121.74,accepted,4,136.61,112.44,14.870000000000019,9.299999999999997
+3,item_003,Thingamajig D,buyer_t3_003,seller_t3_003,True,67.79,accepted,2,135.58,56.67,67.79,11.120000000000005
+3,item_001,Gadget B,buyer_t3_000,seller_t3_002,True,111.16,accepted,3,121.05,101.05,9.89,10.11
+3,item_001,Gadget B,buyer_t3_001,seller_t3_001,False,,rejected,3,115.71,115.72,0.0,0.0
+3,item_000,Widget A,buyer_t3_002,seller_t3_004,False,,rejected,3,131.52,101.59,0.0,0.0
+4,item_002,Doohickey C,buyer_t4_002,seller_t4_002,False,,rejected,3,122.76,89.32,0.0,0.0
+4,item_000,Widget A,buyer_t4_003,seller_t4_001,False,,rejected,3,142.09,86.06,0.0,0.0
+4,item_000,Widget A,buyer_t4_001,seller_t4_004,True,108.29,accepted,3,140.27,84.6,31.980000000000004,23.690000000000012
+4,item_004,Gizmo E,buyer_t4_000,seller_t4_000,True,101.2,accepted,3,115.89,88.77,14.689999999999998,12.430000000000007
+4,item_004,Gizmo E,buyer_t4_004,seller_t4_003,False,,rejected,3,127.55,111.42,0.0,0.0
