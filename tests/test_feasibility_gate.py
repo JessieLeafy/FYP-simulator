@@ -1,19 +1,19 @@
-"""Tests for the deterministic acceptance pipeline (Req 5).
+"""Tests for the LLM pipeline and session behavior (prompt-redesign branch).
 
 Tests:
   a) valid ACCEPT JSON is parsed correctly by call_llm_and_parse
-  b) invalid JSON → repair → valid ACCEPT JSON returned
-  c) invalid JSON twice → fallback; fallback ACCEPTs when offer is feasible
-  d) feasibility override: agent returns REJECT but simulator settles (ACCEPT)
-  e) settlement gate: agent.decide() is NOT called when gate fires
+  b) invalid JSON → rethink → valid JSON returned
+  c) invalid JSON twice → no rescue; REJECT returned
+  d) infeasible action → rethink → corrected action returned
+  e) gate disabled by default: LLM decisions are not overridden
+  f) feasibility module direct tests (unchanged)
 """
 from __future__ import annotations
 
 import unittest
-from typing import Optional
 
 from src.agents.base import BaseAgent
-from src.agents.llm_utils import call_llm_and_parse, fallback_action
+from src.agents.llm_utils import call_llm_and_parse, _check_feasibility
 from src.core.types import (
     ActionType,
     AgentContext,
@@ -54,6 +54,19 @@ def _buyer_ctx(last_offer=None, round_number=2, value=120.0, budget=130.0):
     )
 
 
+def _seller_ctx(last_offer=None, round_number=1, cost=80.0):
+    return AgentContext(
+        item=_item(),
+        role=AgentRole.SELLER,
+        round_number=round_number,
+        max_rounds=10,
+        history=[],
+        last_offer=last_offer,
+        reservation_price=cost,
+        target_margin=0.15,
+    )
+
+
 class _MockBackend:
     """Fake LLM backend that returns pre-set responses in order."""
 
@@ -68,7 +81,7 @@ class _MockBackend:
             resp = self._responses[self._idx]
             self._idx += 1
             return resp
-        return ""  # blank after responses exhausted
+        return ""
 
 
 class _MockAgent(BaseAgent):
@@ -87,12 +100,12 @@ class _MockAgent(BaseAgent):
         return self._action
 
 
-def _counter_action(price: float) -> NegotiationAction:
-    return NegotiationAction(ActionType.COUNTER, price, "Counter.", "r")
-
-
 def _offer_action(price: float) -> NegotiationAction:
     return NegotiationAction(ActionType.OFFER, price, "Offer.", "r")
+
+
+def _counter_action(price: float) -> NegotiationAction:
+    return NegotiationAction(ActionType.COUNTER, price, "Counter.", "r")
 
 
 def _reject_action() -> NegotiationAction:
@@ -117,12 +130,12 @@ class TestValidAcceptJSON(unittest.TestCase):
         self.assertEqual(backend.call_count, 1)
 
 
-# ── Test b: invalid JSON → repair → valid ACCEPT ──────────────────────────────
+# ── Test b: invalid JSON → rethink → valid output ────────────────────────────
 
-class TestInvalidJSONRepair(unittest.TestCase):
-    """(b) First response is garbage; retry returns a valid ACCEPT."""
+class TestInvalidJSONRethink(unittest.TestCase):
+    """(b) First response is garbage; rethink returns valid JSON."""
 
-    def test_repair_retry_yields_accept(self):
+    def test_rethink_yields_accept(self):
         garbage = "I think I should accept the offer."
         valid_accept = (
             '{"action": "accept", "offer_price": null, '
@@ -132,144 +145,178 @@ class TestInvalidJSONRepair(unittest.TestCase):
         ctx = _buyer_ctx(last_offer=90.0)
         result = call_llm_and_parse(backend, "prompt", ctx)
         self.assertEqual(result.action, ActionType.ACCEPT)
-        # Both first attempt and retry were made
         self.assertEqual(backend.call_count, 2)
 
 
-# ── Test c: invalid JSON twice → fallback ─────────────────────────────────────
+# ── Test c: invalid JSON twice → REJECT (no rescue) ──────────────────────────
 
-class TestInvalidJSONTwiceFallback(unittest.TestCase):
-    """(c) Both attempts produce garbage; fallback fires and ACCEPTs when feasible."""
+class TestInvalidJSONTwiceNoRescue(unittest.TestCase):
+    """(c) Both attempts produce garbage; pipeline returns REJECT, no rescue."""
 
-    def test_double_invalid_fallback_accepts_feasible_offer(self):
+    def test_double_invalid_returns_reject(self):
         garbage = "Let me think about it..."
         backend = _MockBackend([garbage, garbage])
-        # Buyer: value=120, budget=130, last_offer=90 → clearly feasible
         ctx = _buyer_ctx(last_offer=90.0, value=120.0, budget=130.0)
         result = call_llm_and_parse(backend, "prompt", ctx)
-        # fallback_action sees last_offer=90 <= cap=120 → returns ACCEPT
-        self.assertEqual(result.action, ActionType.ACCEPT)
+        # No fallback rescue — should be REJECT
+        self.assertEqual(result.action, ActionType.REJECT)
         self.assertEqual(backend.call_count, 2)
 
-    def test_double_invalid_fallback_counters_when_infeasible(self):
-        garbage = "No deal."
+    def test_double_invalid_no_deal_price(self):
+        garbage = "No way"
         backend = _MockBackend([garbage, garbage])
-        # Buyer: value=80, budget=85, last_offer=95 → infeasible (95 > 80)
-        ctx = _buyer_ctx(last_offer=95.0, value=80.0, budget=85.0)
+        ctx = _buyer_ctx(last_offer=90.0, value=120.0, budget=130.0)
         result = call_llm_and_parse(backend, "prompt", ctx)
-        # fallback_action: 95 > cap=80 → counter with a price
-        self.assertIn(result.action, (ActionType.COUNTER, ActionType.OFFER))
-        self.assertIsNotNone(result.offer_price)
+        self.assertIsNone(result.offer_price)
 
 
-# ── Test d: feasibility override when agent rejects ──────────────────────────
+# ── Test d: infeasible action → rethink → corrected ──────────────────────────
 
-class TestFeasibilityOverride(unittest.TestCase):
-    """(d) Agent returns REJECT for a feasible offer → session produces ACCEPT."""
+class TestInfeasibleActionRethink(unittest.TestCase):
+    """(d) Valid JSON but constraint-violating → rethink → corrected."""
 
-    def _run_session(self, seller_offer: float, buyer_value: float, buyer_budget: float):
-        """Run a 2-round session: seller opens, buyer gate/override fires.
+    def test_buyer_over_budget_triggers_rethink(self):
+        # Buyer offers $150 but cap is $120 → infeasible → rethink
+        over_budget = (
+            '{"action": "counter", "offer_price": 150, '
+            '"message_public": "hi", "rationale_private": "r"}'
+        )
+        corrected = (
+            '{"action": "counter", "offer_price": 110, '
+            '"message_public": "ok", "rationale_private": "fixed"}'
+        )
+        backend = _MockBackend([over_budget, corrected])
+        ctx = _buyer_ctx(last_offer=130.0, value=120.0, budget=130.0)
+        result = call_llm_and_parse(backend, "prompt", ctx)
+        self.assertEqual(result.action, ActionType.COUNTER)
+        self.assertEqual(result.offer_price, 110)
+        self.assertEqual(backend.call_count, 2)
 
-        Seller cost is intentionally set above the buyer's corrected opening
-        offer (buyer_value * 0.5) so the gate does not fire on the seller's
-        round 1 turn — only on the buyer's round 2 turn.
-        """
-        buyer = _buyer(value=buyer_value, budget=buyer_budget)
-        # seller.cost = 80 > buyer opening offer (120*0.5=60) so gate
-        # doesn't fire when it's the seller's turn to evaluate the buyer's offer.
+    def test_seller_below_cost_triggers_rethink(self):
+        # Seller offers $70 but cost is $80 → infeasible → rethink
+        below_cost = (
+            '{"action": "counter", "offer_price": 70, '
+            '"message_public": "low", "rationale_private": "r"}'
+        )
+        corrected = (
+            '{"action": "counter", "offer_price": 90, '
+            '"message_public": "ok", "rationale_private": "fixed"}'
+        )
+        backend = _MockBackend([below_cost, corrected])
+        ctx = _seller_ctx(last_offer=60.0, cost=80.0)
+        result = call_llm_and_parse(backend, "prompt", ctx)
+        self.assertEqual(result.action, ActionType.COUNTER)
+        self.assertEqual(result.offer_price, 90)
+        self.assertEqual(backend.call_count, 2)
+
+    def test_infeasible_twice_passes_through(self):
+        """If rethink is also infeasible, pass through to judge."""
+        below_cost = (
+            '{"action": "counter", "offer_price": 70, '
+            '"message_public": "low", "rationale_private": "r"}'
+        )
+        still_below = (
+            '{"action": "counter", "offer_price": 75, '
+            '"message_public": "still low", "rationale_private": "r"}'
+        )
+        backend = _MockBackend([below_cost, still_below])
+        ctx = _seller_ctx(last_offer=60.0, cost=80.0)
+        result = call_llm_and_parse(backend, "prompt", ctx)
+        # Passed through — judge will reject this later
+        self.assertEqual(result.action, ActionType.COUNTER)
+        self.assertEqual(result.offer_price, 75)
+        self.assertEqual(backend.call_count, 2)
+
+
+# ── Test e: gate disabled by default ─────────────────────────────────────────
+
+class TestGateDisabledByDefault(unittest.TestCase):
+    """(e) Session does not override LLM decisions when gate is off."""
+
+    def test_reject_not_overridden_when_gate_off(self):
+        """Agent REJECTs a feasible offer → session respects the REJECT."""
+        buyer = _buyer(value=120.0, budget=130.0)
         seller = _seller(cost=80.0)
         item = _item()
 
-        # Seller agent opens at seller_offer; buyer agent always rejects
-        seller_agent = _MockAgent(_offer_action(seller_offer))
-        # After the seller's opening offer, it's buyer's turn.
-        # Buyer agent would reject, but feasibility gate/override should override.
+        # Seller opens at $100 (feasible for buyer); buyer rejects
+        seller_agent = _MockAgent(_offer_action(100.0))
         buyer_agent = _MockAgent(_reject_action())
 
         session = NegotiationSession(
-            buyer_agent, seller_agent, item, buyer, seller, max_rounds=10,
+            buyer_agent, seller_agent, item, buyer, seller,
+            max_rounds=10,
+            gate_enabled=False,  # explicit, matches new default
         )
-        return session.run()
+        result = session.run()
 
-    def test_reject_overridden_to_accept_when_feasible(self):
-        # Seller opens at $100; buyer value=$120 budget=$130 → feasible
-        result = self._run_session(
-            seller_offer=100.0, buyer_value=120.0, buyer_budget=130.0,
-        )
-        self.assertTrue(result.deal_made)
-        self.assertEqual(result.termination_reason.value, "accepted")
-        self.assertAlmostEqual(result.deal_price, 100.0)
-
-    def test_no_override_when_offer_infeasible(self):
-        # Seller opens at $150; buyer value=$120 → infeasible, reject stands
-        result = self._run_session(
-            seller_offer=150.0, buyer_value=120.0, buyer_budget=130.0,
-        )
-        # Buyer rejects → no deal
+        # Buyer rejected → no deal (not overridden)
         self.assertFalse(result.deal_made)
+        self.assertEqual(result.termination_reason.value, "rejected")
 
-    def test_correct_surplus_after_override(self):
-        result = self._run_session(
-            seller_offer=100.0, buyer_value=120.0, buyer_budget=130.0,
-        )
-        self.assertAlmostEqual(result.buyer_surplus, 20.0)   # 120 - 100
-        self.assertAlmostEqual(result.seller_surplus, 20.0)  # 100 - 80 (seller.cost=80)
-
-
-# ── Test e: settlement gate skips agent.decide() ─────────────────────────────
-
-class TestSettlementGateSkipsLLM(unittest.TestCase):
-    """(e) Settlement gate fires before agent.decide() when offer is feasible."""
-
-    def test_buyer_agent_not_called_when_gate_fires(self):
+    def test_agent_always_called_when_gate_off(self):
+        """Both agents are always called (no pre-LLM gate skip)."""
         buyer = _buyer(value=120.0, budget=130.0)
-        # cost=80 > buyer's opening offer ($70) so gate doesn't fire on
-        # seller's round-1 turn, only on buyer's round-2 turn.
         seller = _seller(cost=80.0)
         item = _item()
 
-        # Buyer opens at $70 (round 0); seller counters at $100 (round 1).
-        # On round 2 the buyer's gate fires: $100 <= cap $120 → ACCEPT.
         buyer_agent = _MockAgent(_offer_action(70.0))
         seller_agent = _MockAgent(_offer_action(100.0))
 
         session = NegotiationSession(
-            buyer_agent, seller_agent, item, buyer, seller, max_rounds=10,
+            buyer_agent, seller_agent, item, buyer, seller,
+            max_rounds=4,
+            gate_enabled=False,
         )
         result = session.run()
 
-        # Deal was made (gate fired on round 2)
-        self.assertTrue(result.deal_made)
-        # buyer_agent.decide() called once (round 0 opening offer only),
-        # NOT a second time because the gate fires on round 2.
-        self.assertEqual(buyer_agent.decide_count, 1)
-        # seller_agent.decide() called once (round 1)
-        self.assertEqual(seller_agent.decide_count, 1)
-
-    def test_gate_does_not_fire_when_offer_infeasible(self):
-        buyer = _buyer(value=100.0, budget=105.0)
-        seller = _seller(cost=60.0)
-        item = _item()
-
-        # Seller opens at $120 — above buyer's cap of $100
-        seller_agent = _MockAgent(_offer_action(120.0))
-        # Buyer rejects (nothing feasible to accept)
-        buyer_agent = _MockAgent(_reject_action())
-
-        session = NegotiationSession(
-            buyer_agent, seller_agent, item, buyer, seller, max_rounds=10,
-        )
-        result = session.run()
-
-        # Gate did not fire; buyer agent was called on round 0 (opens) and
-        # round 2 (rejects).
+        # With gate off, agents are called every round
+        # Round 0: buyer (offer 70), Round 1: seller (offer 100),
+        # Round 2: buyer (offer 70 again), Round 3: seller (offer 100 again)
+        # → timeout (neither accepts)
         self.assertFalse(result.deal_made)
-        # Round 0: buyer.decide() called to open
-        # Round 2: buyer.decide() called, returns REJECT → no deal
-        self.assertGreaterEqual(buyer_agent.decide_count, 1)
+        self.assertEqual(result.termination_reason.value, "timeout")
+        self.assertEqual(buyer_agent.decide_count, 2)
+        self.assertEqual(seller_agent.decide_count, 2)
 
 
-# ── Test for feasibility module directly ─────────────────────────────────────
+# ── Test: feasibility check utility ──────────────────────────────────────────
+
+class TestCheckFeasibility(unittest.TestCase):
+    """Unit tests for the _check_feasibility function in llm_utils."""
+
+    def test_buyer_valid_offer(self):
+        ctx = _buyer_ctx(last_offer=None, value=120.0, budget=130.0)
+        action = NegotiationAction(ActionType.OFFER, 100.0, "", "")
+        self.assertIsNone(_check_feasibility(action, ctx))
+
+    def test_buyer_over_cap(self):
+        ctx = _buyer_ctx(last_offer=None, value=120.0, budget=130.0)
+        action = NegotiationAction(ActionType.COUNTER, 150.0, "", "")
+        error = _check_feasibility(action, ctx)
+        self.assertIsNotNone(error)
+        self.assertIn("150.00", error)
+
+    def test_seller_below_cost(self):
+        ctx = _seller_ctx(last_offer=None, cost=80.0)
+        action = NegotiationAction(ActionType.COUNTER, 70.0, "", "")
+        error = _check_feasibility(action, ctx)
+        self.assertIsNotNone(error)
+        self.assertIn("70.00", error)
+
+    def test_accept_without_prior_offer(self):
+        ctx = _buyer_ctx(last_offer=None)
+        action = NegotiationAction(ActionType.ACCEPT, None, "", "")
+        error = _check_feasibility(action, ctx)
+        self.assertIsNotNone(error)
+
+    def test_accept_within_limits(self):
+        ctx = _buyer_ctx(last_offer=90.0, value=120.0, budget=130.0)
+        action = NegotiationAction(ActionType.ACCEPT, None, "", "")
+        self.assertIsNone(_check_feasibility(action, ctx))
+
+
+# ── Test: feasibility module directly (unchanged) ────────────────────────────
 
 class TestFeasibilityModule(unittest.TestCase):
     """Direct unit tests for compute_utility and is_offer_feasible."""
@@ -280,11 +327,11 @@ class TestFeasibilityModule(unittest.TestCase):
 
     def test_buyer_utility_positive(self):
         u = compute_utility(AgentRole.BUYER, 90.0, self.buyer, self.seller)
-        self.assertAlmostEqual(u, 30.0)  # 120 - 90
+        self.assertAlmostEqual(u, 30.0)
 
     def test_seller_utility_positive(self):
         u = compute_utility(AgentRole.SELLER, 100.0, self.buyer, self.seller)
-        self.assertAlmostEqual(u, 20.0)  # 100 - 80
+        self.assertAlmostEqual(u, 20.0)
 
     def test_buyer_feasible_within_cap(self):
         ok, reason = is_offer_feasible(AgentRole.BUYER, 110.0, self.buyer, self.seller)
@@ -305,12 +352,10 @@ class TestFeasibilityModule(unittest.TestCase):
         self.assertFalse(ok)
 
     def test_boundary_exactly_at_cap(self):
-        # buyer cap = min(120, 130) = 120; offer at exactly 120 → feasible
         ok, _ = is_offer_feasible(AgentRole.BUYER, 120.0, self.buyer, self.seller)
         self.assertTrue(ok)
 
     def test_boundary_exactly_at_cost(self):
-        # seller cost = 80; offer at exactly 80 → feasible (utility=0)
         ok, _ = is_offer_feasible(AgentRole.SELLER, 80.0, self.buyer, self.seller)
         self.assertTrue(ok)
 

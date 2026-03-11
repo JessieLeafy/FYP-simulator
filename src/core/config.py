@@ -46,7 +46,7 @@ class NegotiationConfig:
     max_rounds: int = 10
     min_price: float = 1.0
     max_price: float = 500.0
-    gate_enabled: bool = True        # deterministic feasibility gate
+    gate_enabled: bool = False       # deterministic feasibility gate (disabled by default)
 
 
 @dataclass
@@ -83,6 +83,8 @@ class PromptConfig:
     Attributes:
         prompt_style: ``reactive`` (single-shot) or ``deliberative``
             (structured reasoning).
+        negotiation_mode: ``structured`` (JSON action output) or
+            ``free_language`` (natural language with price tags).
         include_deadline_salience: inject explicit deadline-pressure
             language when remaining rounds are low.
         include_objective_equations: include formal surplus-maximisation
@@ -94,6 +96,7 @@ class PromptConfig:
             ``friendly``).  Injected only when non-empty.
     """
     prompt_style: str = "reactive"             # "reactive" | "deliberative"
+    negotiation_mode: str = "structured"       # "structured" | "free_language"
     include_deadline_salience: bool = True
     include_objective_equations: bool = True
     include_history_summary: bool = True

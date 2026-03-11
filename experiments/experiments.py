@@ -71,11 +71,11 @@ def _extract_offers(result) -> list[dict[str, Any]]:
     return rows
 
 
-def _run_simulation(cfg: SimulationConfig) -> MarketSimulator:
+def _run_simulation(cfg: SimulationConfig, on_session=None) -> MarketSimulator:
     """Run a simulation and return the simulator instance."""
     rng = SeededRNG(cfg.seed)
     sim = MarketSimulator(cfg, rng)
-    sim.run()
+    sim.run(on_session=on_session)
     return sim
 
 
@@ -88,6 +88,7 @@ def run_concession(
     output_base: str = "outputs/experiments",
     seeds: list[int] | None = None,
     conditions: dict[str, dict[str, Any]] | None = None,
+    on_session=None,
 ) -> str:
     """Run concession-curve experiment.
 
@@ -122,7 +123,7 @@ def run_concession(
                 else:
                     setattr(cfg, key, val)
 
-            sim = _run_simulation(cfg)
+            sim = _run_simulation(cfg, on_session=on_session)
             for result in sim.results:
                 session_counter += 1
                 for row in _extract_offers(result):
@@ -152,6 +153,7 @@ def run_anchoring(
     base_cfg: SimulationConfig,
     output_base: str = "outputs/experiments",
     seeds: list[int] | None = None,
+    on_session=None,
 ) -> str:
     """Run anchoring experiment.
 
@@ -191,7 +193,7 @@ def run_anchoring(
             cfg.fixed.buyer_value = overrides["buyer_value"]
             cfg.fixed.buyer_budget = overrides["buyer_budget"]
 
-            sim = _run_simulation(cfg)
+            sim = _run_simulation(cfg, on_session=on_session)
             for result in sim.results:
                 session_counter += 1
                 # extract first offer and final price
@@ -238,6 +240,7 @@ def run_deadline(
     output_base: str = "outputs/experiments",
     seeds: list[int] | None = None,
     max_rounds_list: list[int] | None = None,
+    on_session=None,
 ) -> str:
     """Run deadline effects experiment.
 
@@ -267,7 +270,7 @@ def run_deadline(
             cfg.negotiation.max_rounds = mr
             cfg.output_dir = os.path.join(run_dir, "runs")
 
-            sim = _run_simulation(cfg)
+            sim = _run_simulation(cfg, on_session=on_session)
             for result in sim.results:
                 session_counter += 1
                 cond_total += 1
@@ -314,6 +317,7 @@ def run_market_dynamics(
     base_cfg: SimulationConfig,
     output_base: str = "outputs/experiments",
     seeds: list[int] | None = None,
+    on_session=None,
 ) -> str:
     """Run market dynamics experiment.
 
@@ -339,7 +343,7 @@ def run_market_dynamics(
             cfg.steps = 20
         cfg.output_dir = os.path.join(run_dir, "runs")
 
-        sim = _run_simulation(cfg)
+        sim = _run_simulation(cfg, on_session=on_session)
 
         # write per-seed tick stats
         if sim.tick_stats:
@@ -391,6 +395,7 @@ def run_shock_response(
     base_cfg: SimulationConfig,
     output_base: str = "outputs/experiments",
     seeds: list[int] | None = None,
+    on_session=None,
 ) -> str:
     """Run shock-response experiment.
 
@@ -430,7 +435,7 @@ def run_shock_response(
                 else:
                     setattr(cfg, key, val)
 
-            sim = _run_simulation(cfg)
+            sim = _run_simulation(cfg, on_session=on_session)
 
             for ts in sim.tick_stats:
                 all_tick_data.append({
@@ -472,6 +477,7 @@ def run_mechanism(
     output_base: str = "outputs/experiments",
     seeds: list[int] | None = None,
     conditions: list[str] | None = None,
+    on_session=None,
 ) -> str:
     """Run market mechanism comparison experiment.
 
@@ -499,7 +505,7 @@ def run_mechanism(
             cfg.matching = cond_name
             cfg.output_dir = os.path.join(run_dir, "runs")
 
-            sim = _run_simulation(cfg)
+            sim = _run_simulation(cfg, on_session=on_session)
 
             # collect results for per-condition aggregates
             condition_results[cond_name].extend(sim.results)
@@ -582,6 +588,7 @@ def run_supply_demand(
     base_cfg: SimulationConfig,
     output_base: str = "outputs/experiments",
     seeds: list[int] | None = None,
+    on_session=None,
 ) -> str:
     """Run supply-demand structure experiment.
 
@@ -643,7 +650,7 @@ def run_supply_demand(
                 section, field = key.split(".", 1)
                 setattr(getattr(cfg, section), field, val)
 
-            sim = _run_simulation(cfg)
+            sim = _run_simulation(cfg, on_session=on_session)
 
             # Aggregate tick stats for this condition+seed
             if sim.tick_stats:

@@ -116,3 +116,52 @@ def validate_action_json(obj: dict[str, Any]) -> tuple[bool, str]:
         obj["rationale_private"] = str(obj.get("rationale_private", ""))
 
     return True, ""
+
+
+# ── free-language parsing ──────────────────────────────────────────────────
+
+# Matches ### BUYER_PRICE($123.45) ### or ### SELLER_PRICE($123.45) ###
+# with optional whitespace variations
+_ROLE_PRICE_TAG_RE = re.compile(
+    r"###\s*(?:BUYER_PRICE|SELLER_PRICE)\(\s*\$\s*([\d]+(?:\.[\d]+)?)\s*\)\s*###",
+    re.IGNORECASE,
+)
+
+# Fallback: match bare $123.45 patterns (less reliable)
+_BARE_PRICE_RE = re.compile(
+    r"\$\s*([\d]+(?:\.[\d]+)?)",
+)
+
+_ACCEPT_KEYWORDS = ("ACCEPT_DEAL", "MAKE_DEAL")
+
+
+def extract_price_from_text(text: str) -> Optional[float]:
+    """Extract a price from free-language text.
+
+    Looks for ``### BUYER_PRICE($X) ###`` or ``### SELLER_PRICE($X) ###``
+    tags first. Falls back to the last bare ``$X`` pattern if no tag is
+    found. Returns None if no price can be extracted.
+    """
+    # Primary: role-specific tagged price
+    matches = _ROLE_PRICE_TAG_RE.findall(text)
+    if matches:
+        try:
+            return float(matches[-1])  # last tag wins
+        except ValueError:
+            pass
+
+    # Fallback: bare dollar amounts (take the last one as the offer)
+    bare = _BARE_PRICE_RE.findall(text)
+    if bare:
+        try:
+            return float(bare[-1])
+        except ValueError:
+            pass
+
+    return None
+
+
+def detect_accept_intent(text: str) -> bool:
+    """Check if the text contains an acceptance keyword."""
+    upper = text.upper()
+    return any(kw in upper for kw in _ACCEPT_KEYWORDS)

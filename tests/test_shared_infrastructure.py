@@ -120,12 +120,12 @@ def _make_result(
 # ═══════════════════════════════════════════════════════════════════════
 
 class TestGateToggle:
-    """Test that NegotiationConfig.gate_enabled defaults to True and is
+    """Test that NegotiationConfig.gate_enabled defaults to False and is
     respected by NegotiationSession."""
 
-    def test_default_gate_enabled(self):
+    def test_default_gate_disabled(self):
         cfg = NegotiationConfig()
-        assert cfg.gate_enabled is True
+        assert cfg.gate_enabled is False
 
     def test_gate_disabled_config(self):
         cfg = NegotiationConfig(gate_enabled=False)

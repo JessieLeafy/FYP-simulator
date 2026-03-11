@@ -8,24 +8,14 @@ Usage:
                                  seller, max_rounds=10)
     result = session.run()
 
-Settlement Gate
----------------
-Each round the session runs a deterministic *feasibility check* before
-and after calling the agent.  This is the primary fix for the weak-LLM
-acceptance problem:
+Gate behaviour (v2 — prompt-redesign branch)
+---------------------------------------------
+The pre-LLM settlement gate and post-LLM feasibility override are now
+**disabled by default** (``gate_enabled=False``).  The LLM's decision
+is respected; constraint enforcement is handled by the ActionJudge.
 
-1. **Pre-LLM gate** — if the opponent's standing offer is already
-   acceptable (non-negative surplus, within budget/cost), the session
-   settles immediately without calling the agent at all.
-
-2. **Post-LLM override** — if the agent returns ``COUNTER``/``REJECT``
-   but the standing offer is feasible, the simulator overrides to
-   ``ACCEPT``.  This is a defensive fallback; the pre-LLM gate should
-   normally catch all feasible cases first.
-
-Both ``llm_action`` (what the model said) and ``effective_action``
-(what the simulator executed) are written to the JSONL event log with
-an ``override_flag`` and ``override_reason`` for research analysis.
+The ``gate_enabled`` parameter is retained for backward compatibility
+but should remain ``False`` for all new experiments.
 """
 from __future__ import annotations
 

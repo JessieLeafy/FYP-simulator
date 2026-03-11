@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 import time
-from typing import Optional
+from typing import Callable, Optional
 
 from src.agents.memory_agent import MemoryStore
 from src.core.config import SimulationConfig, resolve_fixed_params
@@ -126,6 +126,7 @@ class MarketSimulator:
         self, agent_type: str, role: AgentRole, agent_id: str = "",
     ):
         from src.agents.llm_deliberative import LLMDeliberativeAgent
+        from src.agents.llm_free_language import LLMFreeLanguageAgent
         from src.agents.llm_reactive import LLMReactiveAgent
         from src.agents.memory_agent import MemoryAgent, ReputationAgent
         from src.agents.rule_based import RuleBasedAgent
@@ -138,6 +139,8 @@ class MarketSimulator:
             return LLMReactiveAgent(self._get_backend(), prompt_cfg=pcfg)
         if agent_type == "llm_deliberative":
             return LLMDeliberativeAgent(self._get_backend(), prompt_cfg=pcfg)
+        if agent_type == "llm_free_language":
+            return LLMFreeLanguageAgent(self._get_backend(), prompt_cfg=pcfg)
         if agent_type == "memory":
             if self._memory_per_agent and agent_id:
                 # per-agent memory for reputation experiments
@@ -180,7 +183,10 @@ class MarketSimulator:
 
     # ── main loop ────────────────────────────────────────────────────────
 
-    def run(self) -> list[NegotiationResult]:
+    def run(
+        self,
+        on_session: Callable[[NegotiationResult], None] | None = None,
+    ) -> list[NegotiationResult]:
         cfg = self.config
         buyer_type = cfg.buyer_agent_type or cfg.agent_type
         seller_type = cfg.seller_agent_type or cfg.agent_type
@@ -241,6 +247,9 @@ class MarketSimulator:
                 self.event_logger.log_result(result)
                 tick_results.append(result)
                 self.results.append(result)
+
+                if on_session is not None:
+                    on_session(result)
 
                 # feed memory agents
                 if hasattr(buyer_agent, "record_outcome"):

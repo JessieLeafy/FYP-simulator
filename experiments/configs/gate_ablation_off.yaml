@@ -1,0 +1,30 @@
+agent_type: llm_deliberative
+steps: 5
+buyers_per_step: 5
+sellers_per_step: 5
+seed: 42
+scenario_mode: fixed
+
+llm:
+  model: llama3.2:3b
+  temperature: 0.2
+  max_tokens: 256
+  timeout_sec: 30.0
+  max_retries: 3
+  debug: false
+
+negotiation:
+  max_rounds: 10
+  min_price: 1.0
+  max_price: 500.0
+  gate_enabled: false
+
+fixed:
+  buyer_value: 120.0
+  buyer_budget: 130.0
+  seller_cost: 80.0
+  seller_target_margin: 0.15
+  item_reference_price: 100.0
+
+shock:
+  enabled: false

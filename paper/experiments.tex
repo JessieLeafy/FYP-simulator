@@ -1,10 +1,22 @@
 % ═══════════════════════════════════════════════════════════════════
-%  Section 4 — Experimental Setup
+%  Methodology and Experimental Design
 % ═══════════════════════════════════════════════════════════════════
 
 \label{sec:experiments}
 
-This section describes the design of all eight experiments conducted on the platform.  Six experiments (A--E, H) are complete, with results reported in Section~\ref{sec:results}.  Two further experiments (F and~G) have infrastructure implemented but have not yet been executed; their designs are documented here for completeness.
+This section describes the methodology and experimental design for all seven experiments conducted on the platform.  The experiments are organised into three levels of analysis---micro-level agent bargaining behaviour (Experiments~A--C), macro-level market outcomes (Experiments~D, E, I), and institutional mechanism effects (Experiment~H)---reflecting the platform's ability to connect individual negotiation dynamics to aggregate market properties within a single system.  Results are reported in Section~\ref{sec:results}.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Experimental Philosophy}
+\label{sec:exp-philosophy}
+
+The experimental programme is designed around three principles.
+
+First, \emph{controlled comparison against theory}.  Each experiment targets a specific prediction from classical bargaining or market theory and varies a single independent variable while holding all other conditions constant.  This enables directional comparison against theoretical baselines, though the small number of seeds and the absence of formal statistical tests limit findings to descriptive characterisation rather than confirmatory inference.
+
+Second, \emph{micro-to-macro connection}.  The platform supports experiments at both the individual session level (where agent behaviour can be observed turn-by-turn) and the market level (where aggregate statistics emerge from many sessions per tick).  This multi-level design enables investigation of whether micro-level bargaining patterns translate into macro-level market regularities.
+
+Third, \emph{transparent confound reporting}.  Two design choices --- the feasibility gate and prompt steering --- are active throughout most experiments and affect results in ways that cannot be separated from agent behaviour without ablation.  Rather than treating these as neutral background conditions, we report their involvement rates per experiment and discuss their implications for interpretation.  The gate and prompt architecture are treated as experimental confounds, not as controlled variables, in the current study; ablation is identified as a priority for future work.
 
 % ───────────────────────────────────────────────────────────────────
 \subsection{Common Setup}
@@ -13,10 +25,10 @@ This section describes the design of all eight experiments conducted on the plat
 All experiments share the following configuration unless explicitly overridden.
 
 \paragraph{Model and inference.}
-A single language model is used throughout: \texttt{llama3.2:3b} served locally via Ollama at temperature~0.2, with a maximum output length of 256~tokens and a 30-second timeout per call.  Failed LLM calls are retried once with a format-correction prompt; if the retry also fails, a deterministic fallback action is generated using the rule-based linear concession formula (Section~\ref{sec:agents}).
+A single language model is used throughout: \texttt{llama3.2:3b} served locally via Ollama at temperature~0.2, with a maximum output length of 256~tokens and a 30-second timeout per call.  Failed LLM calls are retried once with a format-correction prompt (the rethink loop described in Section~\ref{sec:validation}).  If the retry also fails to parse, a \textsc{reject} action is returned, terminating the session without a deal; if the retry parses but remains infeasible, the action is passed through to the \texttt{ActionJudge} for enforcement.
 
 \paragraph{Feasibility gate.}
-The deterministic settlement gate (Section~\ref{sec:gate}) is enabled for all six completed experiments.  As discussed in Section~\ref{sec:gate}, this ensures high deal rates in wide-ZOPA scenarios but masks behavioural effects that require multi-round interaction.  The gate's override rate is reported per experiment in Section~\ref{sec:results} so that gate-driven and LLM-driven settlements can be distinguished.
+The deterministic settlement gate (Section~\ref{sec:gate}) is enabled for all seven experiments.  As discussed in Section~\ref{sec:gate}, this ensures high deal rates in wide-ZOPA scenarios but masks behavioural effects that require multi-round interaction.  The gate's override rate is reported per experiment in Section~\ref{sec:results} so that gate-driven and LLM-driven settlements can be distinguished.
 
 \paragraph{Prompt steering.}
 Two prompt-level design choices apply across all LLM conditions and affect interpretation:
@@ -32,32 +44,43 @@ Neither of these design choices has been ablated; their effects on results are d
 All stochastic processes are controlled by a \texttt{SeededRNG} with per-tick forking (Section~\ref{sec:reproducibility}).  Each experiment records the active configuration, seed list, and git commit hash in a structured JSON summary.  Every agent action, session outcome, and constraint violation is logged to a JSONL event stream.
 
 \paragraph{Replication.}
-Experiments A--C are each replicated across three random seeds (42, 123, 456).  Experiments D and E use a single seed (42) and are reported as exploratory.  Table~\ref{tab:experiment-summary} summarises all eight experiments.
+Experiments~A--C, H, and~I are each replicated across three random seeds (42, 123, 456).  Experiments~D and~E use a single seed (42) and are reported as exploratory.  Table~\ref{tab:experiment-summary} summarises all seven experiments.
 
 \begin{table}[ht]
 \centering
-\caption{Summary of all experiments.  Status indicates whether results are reported in this thesis.}
+\caption{Summary of all experiments, organised by level of analysis.}
 \label{tab:experiment-summary}
 \small
-\begin{tabular}{@{}llllrl@{}}
+\begin{tabular}{@{}lllllrc@{}}
 \toprule
-Exp & Name & Independent variable & Agent type & Sessions & Status \\
+Level & Exp & Name & Independent variable & Agent type & Sessions & Seeds \\
 \midrule
-A & Concession   & agent type (3 levels) & mixed & 450 & Complete (3 seeds) \\
-B & Anchoring    & ZOPA width (3 levels) & reactive & 450 & Complete (3 seeds) \\
-C & Deadline     & max rounds (3 levels) & deliberative & 450 & Complete (3 seeds) \\
-D & Market       & time (30 ticks) & reactive & 450 & Complete (1 seed) \\
-E & Shock        & shock on/off & reactive & 900 & Complete (1 seed) \\
+Micro & A & Concession   & agent type (3 levels) & mixed & 450 & 3 \\
+      & B & Anchoring    & ZOPA width (3 levels) & reactive & 450 & 3 \\
+      & C & Deadline     & max rounds (3 levels) & deliberative & 450 & 3 \\
 \addlinespace
-F & Reputation   & reputation memory & reputation & --- & Infrastructure only \\
-G & Communication & comm.\ strategy (4 levels) & reactive & --- & Infrastructure only \\
-H & Mechanism    & matching algorithm (2 levels) & reactive & 520 & Complete (3 seeds) \\
+Macro & D & Market       & time (30 ticks) & reactive & 450 & 1 \\
+      & E & Shock (stochastic)       & shock on/off & reactive & 900 & 1 \\
+      & I & Shock (structural) & supply/demand shift (3 levels) & reactive & 900 & 3 \\
+\addlinespace
+Institutional & H & Mechanism    & matching algorithm (2 levels) & reactive & 520 & 3 \\
+\midrule
+\multicolumn{5}{@{}l}{Total} & 4{,}120 & \\
 \bottomrule
 \end{tabular}
 \end{table}
 
+% ═══════════════════════════════════════════════════════════════════
+%  Micro-Level: Agent Bargaining Behaviour
+% ═══════════════════════════════════════════════════════════════════
+
+\subsection{Micro-Level Experiments: Agent Bargaining Behaviour}
+\label{sec:exp-micro}
+
+Experiments~A--C use fixed-scenario parameters to isolate individual agent behaviour from market-level variation.  Each experiment tests whether LLM agents reproduce a specific prediction from classical bargaining theory: systematic concession dynamics~\cite{rubinstein1982}, anchoring bias~\cite{galinsky2001}, and deadline-driven concession acceleration~\cite{roth1988deadline}.
+
 % ───────────────────────────────────────────────────────────────────
-\subsection{Experiment A: Concession Dynamics}
+\subsubsection{Experiment A: Concession Dynamics}
 \label{sec:exp-concession}
 
 \paragraph{Research questions.}
@@ -94,7 +117,7 @@ All sessions use fixed-mode parameters to isolate the effect of agent type from 
 \end{itemize}
 
 % ───────────────────────────────────────────────────────────────────
-\subsection{Experiment B: Anchoring Effects}
+\subsubsection{Experiment B: Anchoring Effects}
 \label{sec:exp-anchoring}
 
 \paragraph{Research questions.}
@@ -129,7 +152,7 @@ Agent type is \texttt{llm\_reactive} in all conditions.  Seller target margin~=~
 \end{itemize}
 
 % ───────────────────────────────────────────────────────────────────
-\subsection{Experiment C: Deadline Pressure}
+\subsubsection{Experiment C: Deadline Pressure}
 \label{sec:exp-deadline}
 
 \paragraph{Research questions.}
@@ -164,8 +187,17 @@ Agent type is \texttt{llm\_deliberative} in all conditions, chosen because the d
 \paragraph{Known confounds.}
 Two design choices work against observing deadline effects.  First, the feasibility gate settles deals as soon as offers become feasible, typically before deadline proximity is relevant.  Second, the prompt steers agents to prefer \textsc{counter} over \textsc{reject}, removing the primary mechanism by which agents could delay settlement.  These confounds are not ablated in this experiment; their implications are discussed in Section~\ref{sec:results}.
 
+% ═══════════════════════════════════════════════════════════════════
+%  Macro-Level: Market Outcomes
+% ═══════════════════════════════════════════════════════════════════
+
+\subsection{Macro-Level Experiments: Market Outcomes}
+\label{sec:exp-macro}
+
+Experiments~D, E, and~I shift the unit of analysis from individual sessions to multi-tick markets populated by heterogeneous LLM agents.  These experiments test whether aggregate market outcomes---price equilibrium, liquidity, and shock response---are consistent with predictions from bilateral bargaining theory~\cite{rubinstein1985} and supply-demand theory.  All three use distribution-mode parameters, random matching, and reactive agents.
+
 % ───────────────────────────────────────────────────────────────────
-\subsection{Experiment D: Market Price Discovery}
+\subsubsection{Experiment D: Market Price Discovery}
 \label{sec:exp-market}
 
 \paragraph{Research questions.}
@@ -200,7 +232,7 @@ The simulator runs in market mode with 15 buyer--seller pairs per tick, using ra
 \end{itemize}
 
 % ───────────────────────────────────────────────────────────────────
-\subsection{Experiment E: Shock Response}
+\subsubsection{Experiment E: Stochastic Shock Response}
 \label{sec:exp-shock}
 
 \paragraph{Research questions.}
@@ -234,53 +266,60 @@ Both conditions use the same market-mode configuration as Experiment~D: 30 ticks
 \end{itemize}
 
 % ───────────────────────────────────────────────────────────────────
-\subsection{Planned Extensions}
-\label{sec:planned}
+\subsubsection{Experiment I: Structural Supply-Demand Shifts}
+\label{sec:exp-supply-demand}
 
-Two additional experiment families have full infrastructure implemented in the platform but have not been executed.  Their designs are documented here to support future work and to clarify why the corresponding platform components (reputation store, communication strategies) exist in the codebase.
+Experiment~E applies stochastic multiplicative shocks of unknown direction.  Experiment~I complements this with deterministic, directional shifts to buyer values or seller costs, enabling cleaner tests of whether LLM-agent markets respond to supply and demand conditions in theoretically predicted directions.
 
-\subsubsection{Experiment F: Reputation and Repeated Interaction}
-\label{sec:exp-reputation}
-
-\paragraph{Research question.}
-Does access to opponent reputation information improve deal rates and surplus in a repeated-interaction market?
-
-\paragraph{Design overview.}
-The round-robin matcher (Section~\ref{sec:matching}) pairs agents repeatedly across ticks, enabling the reputation agent (Section~\ref{sec:agents}) to accumulate interaction histories.  The reputation store tracks per-opponent deal rate, average price, average negotiation length, and an inferred style label (cooperative, moderate, tough, or unreliable).  This summary is injected into the agent's prompt so it can condition strategy on the opponent's observed behaviour.
+\paragraph{Research questions.}
+\begin{itemize}
+    \item[\textbf{RQ-I1.}] Do transaction prices shift in the direction predicted by supply-demand theory when buyer values increase (demand shift) or seller costs increase (supply shift)?
+    \item[\textbf{RQ-I2.}] Does the magnitude of price and liquidity response differ between demand-side and supply-side shifts?
+    \item[\textbf{RQ-I3.}] Can observed liquidity changes be decomposed into mechanical effects (fewer feasible pairs) and behavioural effects (lower deal success among feasible pairs)?
+\end{itemize}
 
 \paragraph{Independent variable.}
-Agent type: \texttt{llm\_deliberative} (no reputation) versus \texttt{reputation} (with reputation store).
+Supply-demand condition, varied across three levels:
+
+\begin{itemize}
+    \item \texttt{baseline}: buyer values drawn from [\$80, \$150], seller costs from [\$50, \$120] (same ranges as Experiments~D and~E).
+    \item \texttt{demand\_shock}: buyer values shifted upward by \$20, drawn from [\$100, \$170]; seller costs unchanged.
+    \item \texttt{supply\_shock}: seller costs shifted upward by \$20, drawn from [\$70, \$140]; buyer values unchanged.
+\end{itemize}
+
+\paragraph{Controlled variables.}
+The simulator runs in market mode with 10 buyer--seller pairs per tick over 10~ticks.  Agent type is \texttt{llm\_reactive}.  Random matching.  Maximum rounds~=~10.  Feasibility gate is enabled.
+
+\paragraph{Design.}
+3 conditions $\times$ 3 seeds (42, 123, 456) $\times$ 10 ticks $\times$ 10 pairs per tick = 900 sessions total (300 per condition).
 
 \paragraph{Metrics.}
-Deal rate, mean price, surplus, and negotiation length, compared between conditions over 30+ ticks.  Of particular interest is whether deal rates improve over time as reputation information accumulates.
+\begin{itemize}
+    \item Mean transaction price per condition.
+    \item Liquidity (deal rate) per condition.
+    \item Total welfare, mean buyer surplus, and mean seller surplus per condition.
+    \item Within-condition price dispersion (standard deviation).
+    \item Feasibility decomposition: fraction of pairs with positive ZOPA (mechanical), deal success rate among feasible pairs (behavioural), and overall liquidity.
+\end{itemize}
 
-\paragraph{Note.}
-The feasibility gate must be disabled for this experiment, as it would mask the strategic adaptation that reputation information is intended to produce.
+\paragraph{Hypotheses.}
+\begin{itemize}
+    \item[\textbf{H-I1.}] A demand shift (higher buyer values) increases mean transaction price and liquidity: more pairs have positive ZOPA, and buyers with higher values accept higher prices.
+    \item[\textbf{H-I2.}] A supply shift (higher seller costs) increases mean transaction price but decreases liquidity: sellers demand higher prices to cover costs, and fewer pairs have sufficient ZOPA for agreement.
+    \item[\textbf{H-I3.}] Liquidity effects are partly mechanical (ZOPA compression) and partly behavioural (LLM agents are less effective at reaching agreement when the ZOPA is narrow).
+\end{itemize}
 
-% TODO: Insert results once experiment completes
+% ═══════════════════════════════════════════════════════════════════
+%  Institutional: Mechanism Design
+% ═══════════════════════════════════════════════════════════════════
 
-\subsubsection{Experiment G: Communication Strategy}
-\label{sec:exp-communication}
+\subsection{Institutional Experiment: Mechanism Design}
+\label{sec:exp-institutional}
 
-\paragraph{Research question.}
-Does the framing and tone of negotiation messages---controlled via prompt-level communication strategies---affect concession speed and settlement price?
-
-\paragraph{Design overview.}
-The platform supports four communication strategies, each implemented as a prompt modifier in the \texttt{PromptConfig}: \emph{neutral} (default factual tone), \emph{assertive} (firm, confident language), \emph{collaborative} (emphasising mutual benefit), and \emph{strategic} (explicit surplus-maximisation framing).  These strategies modify the stylistic guidance in the prompt but do not alter the agent's private constraints or the negotiation protocol.
-
-\paragraph{Independent variable.}
-Communication strategy $\in$ \{neutral, assertive, collaborative, strategic\}, applied to both agents in each session.
-
-\paragraph{Metrics.}
-Deal rate, mean settlement price, mean rounds to settlement, and surplus split across the four conditions.
-
-\paragraph{Note.}
-The feasibility gate should be disabled for this experiment to allow communication-driven effects to manifest over multiple rounds.
-
-% TODO: Insert results once experiment completes
+Experiment~H tests whether an institutional design choice---the buyer--seller matching algorithm---affects market-level outcomes independently of agent behaviour.  This complements the micro-level and macro-level experiments by examining whether market structure can be improved through mechanism design even when agent sophistication is held constant.
 
 % ───────────────────────────────────────────────────────────────────
-\subsection{Experiment H: Market Mechanism Design}
+\subsubsection{Experiment H: Matching Mechanism Comparison}
 \label{sec:exp-mechanism}
 
 \paragraph{Research question.}
@@ -309,3 +348,51 @@ The simulator runs in market mode with 10 buyer--seller pairs per tick over 10 t
     \item[\textbf{H-H1.}] Surplus-maximising matching produces a higher deal rate than random matching, because it eliminates structurally infeasible pairs.
     \item[\textbf{H-H2.}] Surplus-maximising matching produces higher allocative efficiency, because it concentrates trades in high-surplus pairs.
 \end{itemize}
+
+% ═══════════════════════════════════════════════════════════════════
+%  Deferred Experiments
+% ═══════════════════════════════════════════════════════════════════
+
+\subsection{Deferred Experiments}
+\label{sec:deferred}
+
+The platform supports two additional experiment families for which infrastructure is implemented but empirical evaluation has not been conducted.  Experiment~F (Reputation and Repeated Interaction) uses the round-robin matcher and reputation agent to test whether access to opponent interaction history improves deal rates over time.  Experiment~G (Communication Strategy) uses prompt-level communication modifiers (neutral, assertive, collaborative, strategic) to test whether message framing affects concession speed and settlement price.  Both experiments require the feasibility gate to be disabled so that strategic adaptation can manifest over multiple rounds.  Their designs and evaluation are deferred to future work (Section~\ref{sec:conclusion}).
+
+% ═══════════════════════════════════════════════════════════════════
+%  Controls and Confounds
+% ═══════════════════════════════════════════════════════════════════
+
+\subsection{Controls and Confounds}
+\label{sec:confounds}
+
+Several design choices function as uncontrolled confounds across the experimental programme.  We enumerate them here so that their effects can be tracked when interpreting results in Section~\ref{sec:results}.
+
+\paragraph{Feasibility gate.}
+The deterministic settlement gate (Section~\ref{sec:gate}) is enabled in all seven experiments.  In wide-ZOPA fixed-scenario experiments (A--C), the gate fires at round~2 in every session, limiting observed concession data to two rounds and making settlement timing invariant to horizon manipulation.  In market-mode experiments (D, E, H, I), gate involvement varies per session depending on the drawn ZOPA.  The gate's contribution to deal rates and settlement timing cannot be separated from agent capability without ablation.
+
+\paragraph{Prompt steering.}
+Two prompt-level choices are active in all LLM conditions: the prefer-\textsc{counter} instruction (which suppresses rejection and may inflate deal rates) and the accept-condition block (which pre-computes utility and may reduce anchoring effects).  Neither has been ablated; their separate effects are unknown.
+
+\paragraph{Single model.}
+All experiments use \texttt{llama3.2:3b} at temperature~0.2.  Results may not generalise to other model families, scales, or temperatures.
+
+\paragraph{Seed limitations.}
+Experiments~D and~E use a single seed (42) and are reported as exploratory.  Experiments~A--C, H, and~I use three seeds, supporting directional replication but not formal statistical testing.
+
+% ═══════════════════════════════════════════════════════════════════
+%  Evaluation Protocol
+% ═══════════════════════════════════════════════════════════════════
+
+\subsection{Evaluation Protocol}
+\label{sec:eval-protocol}
+
+For each experiment, we report the following:
+
+\begin{enumerate}
+    \item \textbf{Primary outcome metrics} as specified in the experiment design (deal rate, settlement price, surplus, timing, or market-level aggregates).
+    \item \textbf{Gate involvement rate}: the fraction of acceptances driven by the feasibility gate rather than by agent decision, enabling readers to assess the degree of mechanical versus behavioural settlement.
+    \item \textbf{Hypothesis evaluation}: whether each stated hypothesis is supported, rejected, or indeterminate, using descriptive comparison (means, standard deviations, Pearson correlation) rather than formal statistical tests.
+    \item \textbf{Confound acknowledgement}: for each finding, whether the result is attributable to agent behaviour, protocol structure, gate enforcement, or some combination that the current design cannot separate.
+\end{enumerate}
+
+All analyses are descriptive.  No hypothesis tests, confidence intervals, or effect sizes are computed.  Findings are characterised as ``consistent with,'' ``directionally aligned with,'' or ``inconsistent with'' theoretical predictions, rather than as confirmations or rejections in the statistical sense.
