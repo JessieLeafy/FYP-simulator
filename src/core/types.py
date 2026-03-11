@@ -47,6 +47,8 @@ class NegotiationAction:
     offer_price: Optional[float]
     message_public: str
     rationale_private: str
+    prompt_sent: Optional[str] = None         # raw prompt sent to LLM
+    raw_llm_output: Optional[str] = None      # raw LLM response text
 
 
 @dataclass

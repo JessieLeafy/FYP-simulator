@@ -73,6 +73,11 @@ class EventLogger:
             "override_flag": override_flag,
             "override_reason": override_reason,
         }
+        # Raw prompt/output logging (free-language mode)
+        if turn.action.prompt_sent is not None:
+            event["prompt_sent"] = turn.action.prompt_sent
+        if turn.action.raw_llm_output is not None:
+            event["raw_llm_output"] = turn.action.raw_llm_output
         self._file.write(json.dumps(event) + "\n")
 
     def log_result(self, result: NegotiationResult) -> None:

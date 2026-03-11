@@ -374,8 +374,8 @@ class TestFreeLanguageSellerPrompt(unittest.TestCase):
     def test_includes_initial_asking_price(self):
         ctx = _make_ctx(role=AgentRole.SELLER, value=80.0, target_margin=0.15)
         prompt = build_free_language_prompt(ctx)
-        # initial_price = 80 * (1 + 2*0.15) = 80 * 1.3 = 104
-        self.assertIn("$104.00", prompt)
+        # initial_price = ref * (1 + margin + 0.3) = 100 * 1.45 = 145
+        self.assertIn("$145.00", prompt)
 
     def test_includes_conversation_history(self):
         history = [

@@ -323,6 +323,8 @@ def call_llm_free_language(
             ActionType.REJECT, None,
             "I cannot continue.",
             f"LLM backend error: {exc}",
+            prompt_sent=prompt,
+            raw_llm_output=None,
         )
 
     action = _parse_free_language(raw, ctx)
@@ -338,15 +340,23 @@ def call_llm_free_language(
             "If you want to accept, include the word MAKE_DEAL.\n"
             "Please respond again:"
         )
+        retry_prompt = prompt + retry_hint
         try:
-            raw = backend.generate(prompt + retry_hint)
+            raw = backend.generate(retry_prompt)
         except (ConnectionError, OSError, RuntimeError) as exc:
             logger.error("LLM retry error: %s", exc)
+            action.prompt_sent = prompt
+            action.raw_llm_output = None
             return action
         action = _parse_free_language(raw, ctx)
         if action.action == ActionType.REJECT:
             logger.error("Free-language retry still unparseable")
-            return action
+        # Log retry prompt since that produced the final action
+        action.prompt_sent = retry_prompt
+        action.raw_llm_output = raw
+    else:
+        action.prompt_sent = prompt
+        action.raw_llm_output = raw
 
     # Check feasibility (same logic as structured pipeline)
     if action.action in (ActionType.OFFER, ActionType.COUNTER):

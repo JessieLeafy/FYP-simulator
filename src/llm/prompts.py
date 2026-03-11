@@ -420,6 +420,7 @@ def build_free_language_buyer_prompt(
         include_deadline = prompt_cfg.include_deadline_salience
 
     cap = min(ctx.reservation_price, ctx.budget or ctx.reservation_price)
+    ref = ctx.item.reference_price
     remaining = ctx.max_rounds - ctx.round_number - 1
 
     parts: list[str] = []
@@ -430,6 +431,10 @@ def build_free_language_buyer_prompt(
         "You are polite, strategic, and want to get the best price within your budget."
     )
 
+    # Product info
+    parts.append("")
+    parts.append(f"Product: {ctx.item.name} (market reference price: ${ref:.2f})")
+
     # State
     parts.append("")
     parts.append(f"Round {ctx.round_number + 1} of {ctx.max_rounds} ({remaining} remaining).")
@@ -439,6 +444,25 @@ def build_free_language_buyer_prompt(
     parts.append("Conversation History:")
     parts.append(_format_free_language_history(ctx.history))
 
+    # Strategy instruction
+    parts.append("")
+    parts.append(
+        "NEGOTIATION STRATEGY:"
+    )
+    parts.append(
+        "- As a buyer, your goal is to pay as LITTLE as possible."
+    )
+    parts.append(
+        "- Start with a LOW opening offer and gradually increase if needed."
+    )
+    parts.append(
+        "- Each counter-offer you make should be HIGHER than your previous offer "
+        "(concede upward toward agreement)."
+    )
+    parts.append(
+        "- Never offer more than you need to. Make small concessions."
+    )
+
     # Respond naturally instruction
     parts.append("")
     parts.append("Please respond naturally as Buyer would. Be strategic but realistic in your negotiation.")
@@ -446,7 +470,7 @@ def build_free_language_buyer_prompt(
     # Core instructions
     parts.append("")
     parts.append("IMPORTANT:")
-    parts.append(f"- Your top price is ${cap:.2f} (confidential, do not reveal).")
+    parts.append(f"- Your maximum acceptable price is ${cap:.2f} (confidential, do not reveal).")
 
     # Deadline pressure
     if include_deadline:
@@ -459,8 +483,8 @@ def build_free_language_buyer_prompt(
         "- CRITICAL: In each turn, you MUST make exactly ONE price offer "
         "using the format:\n  ### BUYER_PRICE($X) ###"
     )
-    parts.append(f'- Example: "I can offer ### BUYER_PRICE(${cap * 0.6:.2f}) ### for this."')
-    parts.append(f'- Example: "How about ### BUYER_PRICE(${cap * 0.7:.2f}) ###?"')
+    parts.append('- Example: "I can offer ### BUYER_PRICE($50.00) ### for this."')
+    parts.append('- Example: "How about ### BUYER_PRICE($65.00) ###?"')
     parts.append(
         "- This specific format is required for the system to correctly "
         "extract your offer price."
@@ -499,7 +523,9 @@ def build_free_language_seller_prompt(
 
     cost = ctx.reservation_price
     margin = ctx.target_margin or 0.15
-    initial_price = cost * (1 + 2 * margin)
+    ref = ctx.item.reference_price
+    # Initial asking price: well above reference to leave room for negotiation
+    initial_price = ref * (1 + margin + 0.3)
     remaining = ctx.max_rounds - ctx.round_number - 1
 
     parts: list[str] = []
@@ -511,14 +537,37 @@ def build_free_language_seller_prompt(
         "close a deal that benefits both parties."
     )
 
+    # Product info
+    parts.append("")
+    parts.append(f"Product: {ctx.item.name} (market reference price: ${ref:.2f})")
+
     # State
     parts.append("")
-    parts.append(f"Round {ctx.round_number + 1} of {ctx.max_rounds} ({remaining} remaining).")
+    parts.append(f"Round {round(ctx.round_number / 2) + 1} of {ctx.max_rounds // 2} ({remaining // 2} remaining).")
 
     # Conversation history
     parts.append("")
     parts.append("Conversation History:")
     parts.append(_format_free_language_history(ctx.history))
+
+    # Strategy instruction
+    parts.append("")
+    parts.append(
+        "NEGOTIATION STRATEGY:"
+    )
+    parts.append(
+        "- As a seller, your goal is to sell for as HIGH a price as possible."
+    )
+    parts.append(
+        "- Start with a HIGH opening price and gradually lower if needed."
+    )
+    parts.append(
+        "- Each counter-offer you make should be LOWER than your previous offer "
+        "(concede downward toward agreement)."
+    )
+    parts.append(
+        "- Never drop your price more than you need to. Make small concessions."
+    )
 
     # Respond naturally instruction
     parts.append("")
@@ -541,8 +590,8 @@ def build_free_language_seller_prompt(
         "- CRITICAL: In each turn, you MUST make exactly ONE price offer "
         "using the format:\n  ### SELLER_PRICE($X) ###"
     )
-    parts.append(f'- Example: "I can offer ### SELLER_PRICE(${initial_price:.2f}) ### for this product."')
-    parts.append(f'- Example: "How about ### SELLER_PRICE(${cost * 1.2:.2f}) ###?"')
+    parts.append('- Example: "I can offer ### SELLER_PRICE($120.00) ### for this product."')
+    parts.append('- Example: "How about ### SELLER_PRICE($95.00) ###?"')
     parts.append(
         "- This specific format is required for the system to correctly "
         "extract your offer price."
@@ -559,7 +608,7 @@ def build_free_language_seller_prompt(
         'phrase "MAKE_DEAL" in your response.'
     )
     parts.append('- Example: "That sounds acceptable to me. MAKE_DEAL"')
-    
+
     parts.append("")
     parts.append("Now, respond as Seller:")
 
