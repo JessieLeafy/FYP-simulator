@@ -491,12 +491,11 @@ def build_free_language_buyer_prompt(
     # Deal acceptance instruction
     parts.append("")
     parts.append("DEAL AGREEMENT INSTRUCTION:")
-    parts.append("- Only finalize the transaction when you believe the price is reasonably balanced.")
-    parts.append(
-        '- If you decide to accept the deal, you MUST include the exact '
-        'phrase "MAKE_DEAL" in your response.'
-    )
-    parts.append('- Example: "That sounds acceptable to me. MAKE_DEAL"')
+    parts.append("- MAKE_DEAL means you ACCEPT the seller's last price exactly as offered.")
+    parts.append("- When you say MAKE_DEAL, do NOT include a new price tag. Just accept.")
+    parts.append("- If you want a different price, make a counter-offer WITHOUT saying MAKE_DEAL.")
+    parts.append('- Example acceptance: "I accept your offer of $88.75. MAKE_DEAL"')
+    parts.append('- Example counter: "How about ### BUYER_PRICE($85.00) ###?"')
 
     parts.append("")
     parts.append("Now, respond as Buyer:")
@@ -594,12 +593,11 @@ def build_free_language_seller_prompt(
     # Deal acceptance instruction
     parts.append("")
     parts.append("DEAL AGREEMENT INSTRUCTION:")
-    parts.append("- Only finalize the transaction when you believe the price is reasonably balanced.")
-    parts.append(
-        '- If you decide to accept the deal, you MUST include the exact '
-        'phrase "MAKE_DEAL" in your response.'
-    )
-    parts.append('- Example: "That sounds acceptable to me. MAKE_DEAL"')
+    parts.append("- MAKE_DEAL means you ACCEPT the buyer's last price exactly as offered.")
+    parts.append("- When you say MAKE_DEAL, do NOT include a new price tag. Just accept.")
+    parts.append("- If you want a different price, make a counter-offer WITHOUT saying MAKE_DEAL.")
+    parts.append('- Example acceptance: "I accept your offer of $85.00. MAKE_DEAL"')
+    parts.append('- Example counter: "How about ### SELLER_PRICE($95.00) ###?"')
 
     parts.append("")
     parts.append("Now, respond as Seller:")
