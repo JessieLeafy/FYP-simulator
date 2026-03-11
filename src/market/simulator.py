@@ -18,6 +18,7 @@ from src.core.types import AgentRole, MarketTickStats, NegotiationResult
 from src.evaluation.metrics import compute_metrics, compute_tick_stats
 from src.evaluation.reports import write_deals_csv, write_summary
 from src.llm.backend import OllamaLLMBackend
+from src.llm.hf_backend import HuggingFaceBackend
 from src.market.catalog import Catalog
 from src.market.matcher import (
     Matcher,
@@ -74,7 +75,7 @@ class MarketSimulator:
         self.matcher: Matcher = self._create_matcher(config.matching)
 
         # lazy LLM backend
-        self._backend: Optional[OllamaLLMBackend] = None
+        self._backend: Optional[OllamaLLMBackend | HuggingFaceBackend] = None
 
         # memory stores (for memory agents)
         # When memory_per_agent is True, each agent gets its own store
@@ -108,18 +109,27 @@ class MarketSimulator:
 
     # ── agent creation ───────────────────────────────────────────────────
 
-    def _get_backend(self) -> OllamaLLMBackend:
+    def _get_backend(self) -> OllamaLLMBackend | HuggingFaceBackend:
         if self._backend is None:
             c = self.config.llm
-            self._backend = OllamaLLMBackend(
-                model=c.model,
-                base_url=c.base_url,
-                temperature=c.temperature,
-                max_tokens=c.max_tokens,
-                timeout_sec=c.timeout_sec,
-                max_retries=c.max_retries,
-                debug=c.debug,
-            )
+            if getattr(c, "backend", "ollama") == "huggingface":
+                self._backend = HuggingFaceBackend(
+                    model=c.model,
+                    device=getattr(c, "device", "cuda:0"),
+                    temperature=c.temperature,
+                    max_tokens=c.max_tokens,
+                    debug=c.debug,
+                )
+            else:
+                self._backend = OllamaLLMBackend(
+                    model=c.model,
+                    base_url=c.base_url,
+                    temperature=c.temperature,
+                    max_tokens=c.max_tokens,
+                    timeout_sec=c.timeout_sec,
+                    max_retries=c.max_retries,
+                    debug=c.debug,
+                )
         return self._backend
 
     def _create_agent(

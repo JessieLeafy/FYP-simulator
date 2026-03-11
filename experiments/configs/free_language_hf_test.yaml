@@ -1,0 +1,36 @@
+# Single-session free-language test using HuggingFace backend
+# Usage: python experiments/run_hf_test.py --config experiments/configs/free_language_hf_test.yaml --model Qwen/Qwen2.5-7B-Instruct
+
+agent_type: llm_free_language
+scenario_mode: fixed
+mode: session
+steps: 1
+buyers_per_step: 1
+sellers_per_step: 1
+seed: 42
+output_dir: outputs/hf_test
+
+llm:
+  backend: huggingface
+  model: Qwen/Qwen2.5-7B-Instruct
+  temperature: 0.4
+  max_tokens: 300
+  device: "cuda:0"
+  debug: true
+
+negotiation:
+  max_rounds: 10
+  gate_enabled: false
+
+prompt:
+  negotiation_mode: free_language
+  prompt_style: reactive
+  include_deadline_salience: true
+  message_tone: neutral
+
+fixed:
+  buyer_value: 100.0
+  buyer_budget: 120.0
+  seller_cost: 60.0
+  seller_target_margin: 0.20
+  item_reference_price: 80.0

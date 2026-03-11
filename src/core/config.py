@@ -20,6 +20,8 @@ class LLMConfig:
     max_retries: int = 3
     base_url: str = "http://localhost:11434"
     debug: bool = False
+    backend: str = "ollama"              # "ollama" | "huggingface"
+    device: str = "cuda:0"              # GPU device for huggingface backend
 
 
 @dataclass
