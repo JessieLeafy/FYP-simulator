@@ -446,22 +446,18 @@ def build_free_language_buyer_prompt(
 
     # Strategy instruction
     parts.append("")
-    parts.append(
-        "NEGOTIATION STRATEGY:"
-    )
-    parts.append(
-        "- As a buyer, your goal is to pay as LITTLE as possible."
-    )
-    parts.append(
-        "- Start with a LOW opening offer and gradually increase if needed."
-    )
+    parts.append("NEGOTIATION STRATEGY:")
+    parts.append("- As a buyer, your goal is to pay as LITTLE as possible.")
+    parts.append("- Start with a LOW opening offer and gradually increase if needed.")
     parts.append(
         "- Each counter-offer you make should be HIGHER than your previous offer "
         "(concede upward toward agreement)."
     )
-    parts.append(
-        "- Never offer more than you need to. Make small concessions."
-    )
+    parts.append("- NEVER offer MORE than the seller's last asking price. "
+                 "If the seller asks $90, your offer must be below $90.")
+    parts.append("- If the seller's price is at or below your maximum acceptable price "
+                 "and you find it reasonable, ACCEPT the deal with MAKE_DEAL instead of countering.")
+    parts.append("- Never offer more than you need to. Make small concessions.")
 
     # Respond naturally instruction
     parts.append("")
@@ -552,22 +548,18 @@ def build_free_language_seller_prompt(
 
     # Strategy instruction
     parts.append("")
-    parts.append(
-        "NEGOTIATION STRATEGY:"
-    )
-    parts.append(
-        "- As a seller, your goal is to sell for as HIGH a price as possible."
-    )
-    parts.append(
-        "- Start with a HIGH opening price and gradually lower if needed."
-    )
+    parts.append("NEGOTIATION STRATEGY:")
+    parts.append("- As a seller, your goal is to sell for as HIGH a price as possible.")
+    parts.append("- Start with a HIGH opening price and gradually lower if needed.")
     parts.append(
         "- Each counter-offer you make should be LOWER than your previous offer "
         "(concede downward toward agreement)."
     )
-    parts.append(
-        "- Never drop your price more than you need to. Make small concessions."
-    )
+    parts.append("- NEVER offer LESS than the buyer's last offer. "
+                 "If the buyer offers $87, your counter must be above $87.")
+    parts.append("- If the buyer's offer is at or above your minimum acceptable price "
+                 "and you find it reasonable, ACCEPT the deal with MAKE_DEAL instead of countering.")
+    parts.append("- Never drop your price more than you need to. Make small concessions.")
 
     # Respond naturally instruction
     parts.append("")
