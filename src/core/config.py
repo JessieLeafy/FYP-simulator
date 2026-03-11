@@ -22,6 +22,7 @@ class LLMConfig:
     debug: bool = False
     backend: str = "ollama"              # "ollama" | "huggingface"
     device: str = "cuda:0"              # GPU device for huggingface backend
+    quantize: str = ""                  # "" | "4bit" | "8bit"
 
 
 @dataclass

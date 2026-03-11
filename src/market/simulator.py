@@ -119,6 +119,7 @@ class MarketSimulator:
                     temperature=c.temperature,
                     max_tokens=c.max_tokens,
                     debug=c.debug,
+                    quantize=getattr(c, "quantize", None) or None,
                 )
             else:
                 self._backend = OllamaLLMBackend(

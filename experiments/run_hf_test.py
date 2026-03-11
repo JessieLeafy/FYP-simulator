@@ -58,6 +58,10 @@ def main():
         help="Override random seed",
     )
     parser.add_argument(
+        "--quantize", choices=["4bit", "8bit"], default=None,
+        help="Enable quantization (4bit or 8bit) for large models",
+    )
+    parser.add_argument(
         "--verbose", "-v", action="store_true",
         help="Enable debug logging",
     )
@@ -85,6 +89,8 @@ def main():
         cfg.negotiation.max_rounds = args.max_rounds
     if args.seed is not None:
         cfg.seed = args.seed
+    if args.quantize:
+        cfg.llm.quantize = args.quantize
 
     # Force HuggingFace backend
     cfg.llm.backend = "huggingface"
@@ -94,6 +100,7 @@ def main():
     print(f"  FREE-LANGUAGE SESSION (real simulator pipeline)")
     print(f"  Model:  {cfg.llm.model}")
     print(f"  Device: {cfg.llm.device}")
+    print(f"  Quant:  {cfg.llm.quantize or 'none (fp16)'}")
     print(f"  Temp:   {cfg.llm.temperature}")
     print(f"  Rounds: {cfg.negotiation.max_rounds}")
     print(f"  Gate:   {'ON' if cfg.negotiation.gate_enabled else 'OFF'}")

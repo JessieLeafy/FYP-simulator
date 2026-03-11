@@ -19,16 +19,22 @@ logger = logging.getLogger(__name__)
 _torch = None
 _AutoModelForCausalLM = None
 _AutoTokenizer = None
+_BitsAndBytesConfig = None
 
 
 def _ensure_imports():
-    global _torch, _AutoModelForCausalLM, _AutoTokenizer
+    global _torch, _AutoModelForCausalLM, _AutoTokenizer, _BitsAndBytesConfig
     if _torch is None:
         import torch as _t
         from transformers import AutoModelForCausalLM as _M, AutoTokenizer as _T
         _torch = _t
         _AutoModelForCausalLM = _M
         _AutoTokenizer = _T
+        try:
+            from transformers import BitsAndBytesConfig as _B
+            _BitsAndBytesConfig = _B
+        except ImportError:
+            _BitsAndBytesConfig = None
 
 
 class HuggingFaceBackend:
@@ -41,6 +47,7 @@ class HuggingFaceBackend:
         temperature: float = 0.4,
         max_tokens: int = 300,
         debug: bool = False,
+        quantize: Optional[str] = None,  # "4bit" or "8bit"
         # Unused but accepted for interface compatibility with LLMConfig
         base_url: str = "",
         timeout_sec: float = 30.0,
@@ -62,12 +69,32 @@ class HuggingFaceBackend:
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
-        logger.info("Loading model: %s → %s", model, device)
-        load_kwargs = {"dtype": _torch.float16, "trust_remote_code": True}
-        if device == "auto":
+        logger.info("Loading model: %s → %s (quantize=%s)", model, device, quantize)
+        load_kwargs = {"trust_remote_code": True}
+
+        if quantize in ("4bit", "8bit"):
+            if _BitsAndBytesConfig is None:
+                raise ImportError(
+                    "bitsandbytes + transformers required for quantization. "
+                    "Install with: pip install bitsandbytes"
+                )
+            if quantize == "4bit":
+                load_kwargs["quantization_config"] = _BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_compute_dtype=_torch.float16,
+                    bnb_4bit_quant_type="nf4",
+                )
+            else:
+                load_kwargs["quantization_config"] = _BitsAndBytesConfig(
+                    load_in_8bit=True,
+                )
             load_kwargs["device_map"] = "auto"
         else:
-            load_kwargs["device_map"] = {"": device}
+            load_kwargs["dtype"] = _torch.float16
+            if device == "auto":
+                load_kwargs["device_map"] = "auto"
+            else:
+                load_kwargs["device_map"] = {"": device}
 
         self.model = _AutoModelForCausalLM.from_pretrained(model, **load_kwargs)
         self.model.eval()
