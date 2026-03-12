@@ -6,9 +6,9 @@
 # Conditions (in experiments.py): no_shock vs with_shock
 agent_type: llm_free_language
 mode: market
-steps: 20
-buyers_per_step: 25
-sellers_per_step: 25
+steps: 10
+buyers_per_step: 10
+sellers_per_step: 10
 seed: 42
 scenario_mode: distribution
 

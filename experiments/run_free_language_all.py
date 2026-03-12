@@ -70,6 +70,7 @@ EXPERIMENT_DEFS = {
         "name": "Anchoring Effect",
         "config": "experiments/configs/exp_anchoring.yaml",
         "priority": 3,
+        "held": True,  # ZOPA confound — needs redesign before rerun
     },
     "H": {
         "name": "Mechanism Comparison",
@@ -252,15 +253,15 @@ def estimate_sessions(key: str, seeds: list[int], cfg=None) -> int:
         n_conds = {"A": 2, "B": 3, "C": 3, "D": 1, "E": 2, "H": 2, "I": 3}
         return n_conds.get(key, 1) * n_seeds * steps * pairs
 
-    # Defaults match production YAML configs (Phase D)
+    # Defaults match production YAML configs (Phase D, revised 2026-03-12)
     estimates = {
-        "A": 2 * n_seeds * 5 * 10,       #  300  (2 conds x seeds x 5 steps x 10 pairs)
-        "B": 3 * n_seeds * 5 * 10,       #  450  (3 anchor conds)
-        "C": 3 * n_seeds * 5 * 10,       #  450  (3 max_rounds conds)
-        "D": 1 * n_seeds * 20 * 25,      # 1500  (1 cond x 20 ticks x 25 pairs)
-        "E": 2 * n_seeds * 20 * 25,      # 3000  (2 shock conds)
-        "H": 2 * n_seeds * 10 * 20,      # 1200  (2 matchers x 10 ticks x 20 pairs)
-        "I": 3 * n_seeds * 10 * 20,      # 1800  (3 supply/demand conds)
+        "A": 2 * n_seeds * 3 * 8,        #  144  (2 conds x seeds x 3 steps x 8 pairs)
+        "B": 3 * n_seeds * 3 * 8,        #  216  (3 anchor conds)
+        "C": 3 * n_seeds * 3 * 8,        #  216  (3 max_rounds conds)
+        "D": 1 * n_seeds * 10 * 10,      #  300  (1 cond x 10 ticks x 10 pairs)
+        "E": 2 * n_seeds * 10 * 10,      #  600  (2 shock conds)
+        "H": 2 * n_seeds * 8 * 8,        #  384  (2 matchers x 8 ticks x 8 pairs)
+        "I": 3 * n_seeds * 8 * 8,        #  576  (3 supply/demand conds)
     }
     return estimates.get(key, 100)
 
@@ -302,8 +303,10 @@ def main():
                 print(f"Unknown experiment: {k}. Available: {list(EXPERIMENT_DEFS.keys())}")
                 sys.exit(1)
     else:
-        keys = sorted(EXPERIMENT_DEFS.keys(),
-                       key=lambda k: EXPERIMENT_DEFS[k]["priority"])
+        keys = sorted(
+            [k for k, v in EXPERIMENT_DEFS.items() if not v.get("held")],
+            key=lambda k: EXPERIMENT_DEFS[k]["priority"],
+        )
 
     # Estimate total sessions
     if args.pilot:

@@ -6,9 +6,9 @@
 #   rule_based  vs  llm_free_language
 # The agent_type here is the base; conditions override it per-arm.
 agent_type: llm_free_language
-steps: 5
-buyers_per_step: 10
-sellers_per_step: 10
+steps: 3
+buyers_per_step: 8
+sellers_per_step: 8
 seed: 42
 scenario_mode: fixed
 

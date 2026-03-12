@@ -172,7 +172,6 @@ def step_b5_market_mode(backend=None):
         seeds=[42],
         on_session=on_session,
         backend=backend,
-        min_steps=0,  # respect the caller's cfg.steps for smoke tests
     )
     print(f"  Output: {run_dir}")
 

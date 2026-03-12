@@ -7,9 +7,9 @@
 # Conditions (in experiments.py) vary max_rounds: 6, 12, 20
 # The max_rounds here is the base; the runner overrides per-arm.
 agent_type: llm_free_language
-steps: 5
-buyers_per_step: 10
-sellers_per_step: 10
+steps: 3
+buyers_per_step: 8
+sellers_per_step: 8
 seed: 42
 scenario_mode: fixed
 

@@ -336,12 +336,11 @@ def run_market_dynamics(
     seeds: list[int] | None = None,
     on_session=None,
     backend=None,
-    min_steps: int = 20,
 ) -> str | tuple[str, Any]:
     """Run market dynamics experiment.
 
-    Uses market mode with >=*min_steps* ticks to observe price trends,
-    dispersion, and liquidity over time.
+    Uses market mode to observe price trends, dispersion, and liquidity
+    over time.  Tick count is controlled by ``cfg.steps`` in the YAML config.
 
     Returns:
         Path to experiment run directory.
@@ -359,8 +358,6 @@ def run_market_dynamics(
         cfg = copy.deepcopy(base_cfg)
         cfg.seed = seed
         cfg.mode = "market"
-        if cfg.steps < min_steps:
-            cfg.steps = min_steps
         cfg.output_dir = os.path.join(run_dir, "runs")
 
         sim = _run_simulation(cfg, on_session=on_session,
@@ -448,8 +445,6 @@ def run_shock_response(
             cfg = copy.deepcopy(base_cfg)
             cfg.seed = seed
             cfg.mode = "market"
-            if cfg.steps < 20:
-                cfg.steps = 20
             cfg.output_dir = os.path.join(run_dir, "runs")
 
             for key, val in overrides.items():

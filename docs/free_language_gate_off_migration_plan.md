@@ -293,15 +293,15 @@ All experiment runner functions in `experiments.py` extract data exclusively fro
 
 | Exp | Status | Reason | Priority | Est. Sessions |
 |---|---|---|---|---|
-| **A** | KEEP BUT MODIFY | Drop structured agents, add diagnostics | HIGH | 300 |
-| **B** | KEEP BUT MODIFY | Fix ZOPA confound in anchoring design | MEDIUM | 450 |
-| **C** | KEEP BUT MODIFY | Adjust round counts, biggest gate-off beneficiary | HIGH | 450 |
-| **D** | KEEP BUT SCALE UP | More pairs/tick, more seeds | MEDIUM | 1,500 |
-| **E** | KEEP BUT SCALE UP | Most compute, weakest signal | LOW | 3,000 |
-| **H** | KEEP BUT SCALE UP | More pairs/tick | MEDIUM | 1,200 |
-| **I** | KEEP BUT SCALE UP | More pairs/tick | MEDIUM | 1,800 |
+| **A** | KEEP BUT MODIFY | Drop structured agents, add diagnostics | HIGH | 144 |
+| **B** | **HOLD** | ZOPA confound — needs redesign before rerun | — | 0 |
+| **C** | KEEP BUT MODIFY | Adjust round counts, biggest gate-off beneficiary | HIGH | 216 |
+| **D** | KEEP | 3 seeds, 10 ticks × 10 pairs | MEDIUM | 300 |
+| **E** | KEEP | 3 seeds, 10 ticks × 10 pairs | LOW | 600 |
+| **H** | KEEP | 3 seeds, 8 ticks × 8 pairs | MEDIUM | 384 |
+| **I** | KEEP | 3 seeds, 8 ticks × 8 pairs | MEDIUM | 576 |
 
-**Total estimated**: ~8,700 sessions. At ~5 sec/session with Ollama (from pilot data), this is approximately **12 hours** of LLM compute.
+**Total estimated**: ~2,220 sessions. At ~32 sec/session (free-language, 10 rounds), approximately **20 hours** of compute.
 
 ### New Metrics to Add Across All Experiments
 
@@ -511,18 +511,111 @@ The HuggingFace model is loaded exactly once on the first `llm_free_language` co
 
 ### Phase D: Full Reruns (3 seeds, production scale)
 
-| Step | Experiment | Scale | Est. Sessions | Priority |
-|---|---|---|---|---|
-| D1 | A: Concession | 2 conds × 3 seeds × 5 steps × 10 pairs = 300 | 300 | HIGH |
-| D2 | C: Deadline | 3 conds × 3 seeds × 5 steps × 10 pairs = 450 | 450 | HIGH |
-| D3 | B: Anchoring | 3 conds × 3 seeds × 5 steps × 10 pairs = 450 | 450 | MEDIUM |
-| D4 | H: Mechanism | 2 conds × 3 seeds × 10 ticks × 20 pairs = 1,200 | 1,200 | MEDIUM |
-| D5 | I: Supply-Demand | 3 conds × 3 seeds × 10 ticks × 20 pairs = 1,800 | 1,800 | MEDIUM |
-| D6 | D: Market Dynamics | 1 cond × 3 seeds × 20 ticks × 25 pairs = 1,500 | 1,500 | MEDIUM |
-| D7 | F: Reputation | 2 conds × 3 seeds × 15 ticks × 10 pairs = 900 | 900 | MEDIUM |
-| D8 | E: Shock Response | 2 conds × 3 seeds × 20 ticks × 25 pairs = 3,000 | 3,000 | LOW |
+> **Revised 2026-03-12.** Downsized to fit within ~20 hours of compute at ~32s/session.
+> Experiment B (Anchoring) is **HELD** pending ZOPA confound redesign.
+> Experiment F (Reputation) deferred — requires `stable_ids` port and separate planning.
 
-**Total Phase D**: ~9,600 sessions, ~13 hours of compute
+**Sizing principle**: enough sessions per condition per seed for credible reporting,
+without overdoing compute. Session-mode experiments need ~24 sessions/cond/seed;
+market-mode experiments need ~64–100 sessions/cond/seed for stable per-tick aggregates.
+
+| Step | Experiment | Scale | Sessions | Hours | Priority |
+|---|---|---|---|---|---|
+| D1 | A: Concession | 2 conds × 3 seeds × 3 steps × 8 pairs | 144 | 1.3 | HIGH |
+| D2 | C: Deadline | 3 conds × 3 seeds × 3 steps × 8 pairs | 216 | 1.9 | HIGH |
+| D3 | H: Mechanism | 2 conds × 3 seeds × 8 ticks × 8 pairs | 384 | 3.4 | MEDIUM |
+| D4 | I: Supply-Demand | 3 conds × 3 seeds × 8 ticks × 8 pairs | 576 | 5.1 | MEDIUM |
+| D5 | D: Market Dynamics | 1 cond × 3 seeds × 10 ticks × 10 pairs | 300 | 2.7 | MEDIUM |
+| D6 | E: Shock Response | 2 conds × 3 seeds × 10 ticks × 10 pairs | 600 | 5.3 | LOW |
+
+**Total Phase D**: ~2,220 sessions, ~19.7 hours of compute
+
+**Per-condition/seed credibility**:
+- A, C: 24 sessions (3 steps × 8 pairs) — sufficient for concession curves and deal-rate comparison
+- H, I: 64 sessions (8 ticks × 8 pairs) — solid for efficiency/price comparison across ticks
+- D: 100 sessions/seed (10 × 10) — sufficient for price trend analysis
+- E: 100 sessions/cond/seed (10 × 10) — enough for shock vs no-shock comparison
+
+**Held experiments**:
+- **B: Anchoring** — ZOPA confound (buyer value varies across conditions, confounding anchoring with zone-of-agreement width). Needs redesign before rerun.
+- **F: Reputation** — requires `stable_ids` port from expF branch, plus `ReputationFreeLanguageAgent`. Separate planning needed.
+
+### Phase D-Server: Full Run Deployment on Server
+
+> **Added 2026-03-12.** Step-by-step plan for running Phase D on a GPU server.
+
+**Prerequisites**:
+- Server with GPU (CUDA) and ≥16 GB VRAM for Qwen2.5-14B-Instruct (4-bit quantized)
+- Python 3.10+, PyTorch with CUDA, transformers, bitsandbytes
+- Pilot (Phase C) completed locally with go/no-go criteria met
+
+**Setup steps**:
+
+```bash
+# 1. Clone and checkout
+git clone https://github.com/JessieLeafy/FYP-simulator.git
+cd FYP-simulator
+git checkout prompt-redesign
+
+# 2. Create venv and install deps
+python -m venv .venv
+source .venv/bin/activate
+pip install pyyaml transformers torch accelerate bitsandbytes tqdm
+
+# 3. Verify GPU is available
+python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+
+# 4. Quick smoke test (1 session, ~30s)
+python experiments/run_smoke_test.py --backend huggingface
+
+# 5. Full run in tmux/screen (detached, survives SSH disconnect)
+tmux new -s fyp-run
+python experiments/run_free_language_all.py \
+  --backend huggingface \
+  --quantize 4bit \
+  2>&1 | tee outputs/full_run_$(date +%Y%m%d_%H%M%S).log
+
+# Detach: Ctrl-B then D
+# Reattach later: tmux attach -t fyp-run
+```
+
+**Monitoring**:
+- tqdm progress bar shows sessions completed, deal rate, and ETA
+- Log file captures everything for post-mortem
+- If SSH drops, reattach with `tmux attach -t fyp-run`
+
+**Expected timeline** (~32s/session):
+
+| Experiment | Sessions | Est. Time | Cumulative |
+|---|---|---|---|
+| A: Concession | 144 | 1.3h | 1.3h |
+| C: Deadline | 216 | 1.9h | 3.2h |
+| H: Mechanism | 384 | 3.4h | 6.6h |
+| I: Supply-Demand | 576 | 5.1h | 11.7h |
+| D: Market Dynamics | 300 | 2.7h | 14.4h |
+| E: Shock Response | 600 | 5.3h | 19.7h |
+
+**Recovery**: Each experiment writes its own output directory and summary.
+If the run crashes mid-way, re-run with `--only` for remaining experiments:
+```bash
+# Example: resume from experiment D onward
+python experiments/run_free_language_all.py \
+  --only D,E \
+  --backend huggingface \
+  --quantize 4bit
+```
+
+**Post-run**:
+```bash
+# Verify all outputs exist
+ls outputs/experiments_free_language/
+
+# Parse diagnostics are auto-generated per experiment
+cat outputs/experiments_free_language/*/parse_diagnostics.json
+
+# Copy results back to local machine
+# (from local): scp -r server:FYP-simulator/outputs/experiments_free_language/ outputs/
+```
 
 ### Phase E: Paper/Report Updates
 
