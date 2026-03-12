@@ -13,7 +13,8 @@ seed: 42
 scenario_mode: distribution
 
 llm:
-  model: Qwen2.5-14B-Instruct
+  backend: huggingface
+  model: Qwen/Qwen2.5-14B-Instruct
   temperature: 0.2
   max_tokens: 512
   timeout_sec: 60.0
