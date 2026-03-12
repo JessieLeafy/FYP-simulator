@@ -410,6 +410,50 @@ def _format_free_language_history(history: list[NegotiationTurn]) -> str:
     return "\n".join(lines)
 
 
+def _free_language_decision_hint(ctx: AgentContext) -> str:
+    """Dynamic per-turn feasibility signal for free-language prompts.
+
+    Mirrors :func:`_decision_hint` but uses MAKE_DEAL terminology and
+    natural-language phrasing suited to the free-language pipeline.
+    """
+    if ctx.last_offer is None:
+        return ""
+
+    last = ctx.last_offer
+    if ctx.role == AgentRole.BUYER:
+        cap = min(ctx.reservation_price, ctx.budget or ctx.reservation_price)
+        if last <= cap:
+            return (
+                f"CURRENT STATUS: The seller's last price is ${last:.2f}. "
+                f"Your maximum is ${cap:.2f}. This price is WITHIN your limit "
+                f"and you would gain ${cap - last:.2f} surplus. "
+                f"Consider accepting with MAKE_DEAL if it is close to "
+                f"what you would counter with."
+            )
+        else:
+            return (
+                f"CURRENT STATUS: The seller's last price is ${last:.2f}. "
+                f"Your maximum is ${cap:.2f}. This price EXCEEDS your limit — "
+                f"you must counter below ${cap:.2f}."
+            )
+    else:
+        cost = ctx.reservation_price
+        if last >= cost:
+            return (
+                f"CURRENT STATUS: The buyer's last offer is ${last:.2f}. "
+                f"Your minimum is ${cost:.2f}. This offer is ABOVE your minimum "
+                f"and you would gain ${last - cost:.2f} surplus. "
+                f"Consider accepting with MAKE_DEAL if it is close to "
+                f"what you would counter with."
+            )
+        else:
+            return (
+                f"CURRENT STATUS: The buyer's last offer is ${last:.2f}. "
+                f"Your minimum is ${cost:.2f}. This offer is BELOW your minimum — "
+                f"you must counter above ${cost:.2f}."
+            )
+
+
 def build_free_language_buyer_prompt(
     ctx: AgentContext,
     prompt_cfg: Optional[PromptConfig] = None,
@@ -452,6 +496,12 @@ def build_free_language_buyer_prompt(
     parts.append("Conversation History:")
     parts.append(_format_free_language_history(ctx.history))
 
+    # Decision hint (dynamic per-turn feasibility signal)
+    hint = _free_language_decision_hint(ctx)
+    if hint:
+        parts.append("")
+        parts.append(hint)
+
     # Strategy instruction
     parts.append("")
     parts.append("NEGOTIATION STRATEGY:")
@@ -463,8 +513,8 @@ def build_free_language_buyer_prompt(
     )
     parts.append("- NEVER offer MORE than the seller's last asking price. "
                  "If the seller asks $90, your offer must be below $90.")
-    parts.append("- If the seller's price is at or below your maximum acceptable price "
-                 "and you find it reasonable, ACCEPT the deal with MAKE_DEAL instead of countering.")
+    parts.append("- If the opponent's offer is already very close to the price you would "
+                 "counter with, prefer accepting with MAKE_DEAL over making a tiny counteroffer.")
     parts.append("- Never offer more than you need to. Make small concessions.")
 
     # Respond naturally instruction
@@ -561,12 +611,18 @@ def build_free_language_seller_prompt(
 
     # State
     parts.append("")
-    parts.append(f"Round {round(ctx.round_number / 2) + 1} of {ctx.max_rounds // 2} ({remaining // 2} remaining).")
+    parts.append(f"Round {ctx.round_number + 1} of {ctx.max_rounds} ({remaining} remaining).")
 
     # Conversation history
     parts.append("")
     parts.append("Conversation History:")
     parts.append(_format_free_language_history(ctx.history))
+
+    # Decision hint (dynamic per-turn feasibility signal)
+    hint = _free_language_decision_hint(ctx)
+    if hint:
+        parts.append("")
+        parts.append(hint)
 
     # Strategy instruction
     parts.append("")
@@ -579,8 +635,8 @@ def build_free_language_seller_prompt(
     )
     parts.append("- NEVER offer LESS than the buyer's last offer. "
                  "If the buyer offers $87, your counter must be above $87.")
-    parts.append("- If the buyer's offer is at or above your minimum acceptable price "
-                 "and you find it reasonable, ACCEPT the deal with MAKE_DEAL instead of countering.")
+    parts.append("- If the opponent's offer is already very close to the price you would "
+                 "counter with, prefer accepting with MAKE_DEAL over making a tiny counteroffer.")
     parts.append("- Never drop your price more than you need to. Make small concessions.")
 
     # Respond naturally instruction
