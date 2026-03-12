@@ -275,11 +275,34 @@ def _parse_free_language(raw: str, ctx: AgentContext) -> NegotiationAction:
     price = extract_price_from_text(cleaned)
 
     if has_accept:
+        if price is not None:
+            # Conflict: agent said MAKE_DEAL but also included a price tag.
+            # Policy: MAKE_DEAL semantics = accept opponent's last price.
+            # Log the conflict for diagnostics.
+            last = ctx.last_offer
+            if last is not None and abs(price - last) < 0.01:
+                rationale = (
+                    f"Free-language: ACCEPT with price ${price:.2f} "
+                    f"matching last offer."
+                )
+            else:
+                rationale = (
+                    f"Free-language: ACCEPT+PRICE conflict — agent said "
+                    f"MAKE_DEAL with price ${price:.2f}, last offer was "
+                    f"${last if last is not None else 'None'}. "
+                    f"Treating as ACCEPT per MAKE_DEAL semantics."
+                )
+                logger.warning(
+                    "Accept+price conflict: extracted $%.2f, last_offer=%s",
+                    price, last,
+                )
+        else:
+            rationale = "Free-language: agent signalled ACCEPT_DEAL."
         return NegotiationAction(
             ActionType.ACCEPT,
             None,
             cleaned,
-            "Free-language: agent signalled ACCEPT_DEAL.",
+            rationale,
         )
 
     if price is not None:

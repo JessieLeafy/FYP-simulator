@@ -206,15 +206,20 @@ class MarketSimulator:
         # resolve fixed config (None when in distribution mode)
         fixed_cfg = cfg.fixed if cfg.scenario_mode == "fixed" else None
 
+        # Use stable IDs for round-robin matching (needed for reputation tracking)
+        use_stable_ids = cfg.matching == "round_robin"
+
         for step in range(cfg.steps):
             step_rng = self.rng.fork()
             tick_results: list[NegotiationResult] = []
 
             buyers = generate_buyers(
                 step_rng, cfg.buyers_per_step, step, cfg.market, fixed_cfg,
+                stable_ids=use_stable_ids,
             )
             sellers = generate_sellers(
                 step_rng, cfg.sellers_per_step, step, cfg.market, fixed_cfg,
+                stable_ids=use_stable_ids,
             )
 
             buyers, sellers = apply_shocks(

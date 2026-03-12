@@ -416,8 +416,12 @@ def build_free_language_buyer_prompt(
     ``### BUYER_PRICE($X) ###`` and a ``MAKE_DEAL`` keyword for acceptance.
     """
     include_deadline = True
+    comm_strategy = "neutral"
+    tone = "neutral"
     if prompt_cfg is not None:
         include_deadline = prompt_cfg.include_deadline_salience
+        comm_strategy = prompt_cfg.communication_strategy
+        tone = prompt_cfg.message_tone
 
     cap = min(ctx.reservation_price, ctx.budget or ctx.reservation_price)
     ref = ctx.item.reference_price
@@ -497,6 +501,17 @@ def build_free_language_buyer_prompt(
     parts.append('- Example acceptance: "I accept your offer of $88.75. MAKE_DEAL"')
     parts.append('- Example counter: "How about ### BUYER_PRICE($85.00) ###?"')
 
+    # Tone / communication strategy
+    tone_hint = _TONE_HINTS.get(tone, "")
+    if tone_hint:
+        parts.append("")
+        parts.append(tone_hint)
+
+    comm_hint = _COMMUNICATION_STRATEGIES.get(comm_strategy, "")
+    if comm_hint:
+        parts.append("")
+        parts.append(comm_hint)
+
     parts.append("")
     parts.append("Now, respond as Buyer:")
 
@@ -513,8 +528,12 @@ def build_free_language_seller_prompt(
     ``### SELLER_PRICE($X) ###`` and a ``MAKE_DEAL`` keyword for acceptance.
     """
     include_deadline = True
+    comm_strategy = "neutral"
+    tone = "neutral"
     if prompt_cfg is not None:
         include_deadline = prompt_cfg.include_deadline_salience
+        comm_strategy = prompt_cfg.communication_strategy
+        tone = prompt_cfg.message_tone
 
     cost = ctx.reservation_price
     margin = ctx.target_margin or 0.15
@@ -598,6 +617,17 @@ def build_free_language_seller_prompt(
     parts.append("- If you want a different price, make a counter-offer WITHOUT saying MAKE_DEAL.")
     parts.append('- Example acceptance: "I accept your offer of $85.00. MAKE_DEAL"')
     parts.append('- Example counter: "How about ### SELLER_PRICE($95.00) ###?"')
+
+    # Tone / communication strategy
+    tone_hint = _TONE_HINTS.get(tone, "")
+    if tone_hint:
+        parts.append("")
+        parts.append(tone_hint)
+
+    comm_hint = _COMMUNICATION_STRATEGIES.get(comm_strategy, "")
+    if comm_hint:
+        parts.append("")
+        parts.append(comm_hint)
 
     parts.append("")
     parts.append("Now, respond as Seller:")

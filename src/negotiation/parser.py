@@ -132,7 +132,14 @@ _BARE_PRICE_RE = re.compile(
     r"\$\s*([\d]+(?:\.[\d]+)?)",
 )
 
-_ACCEPT_KEYWORDS = ("ACCEPT_DEAL", "MAKE_DEAL")
+_ACCEPT_RE = re.compile(r'\b(?:ACCEPT_DEAL|MAKE_DEAL)\b', re.IGNORECASE)
+
+# Negation pattern: MAKE_DEAL/ACCEPT_DEAL preceded by a negation word
+_NEGATED_ACCEPT_RE = re.compile(
+    r"\b(?:won't|will\s+not|cannot|can't|don't|do\s+not|no|never|refuse\s+to|not)\s+"
+    r"(?:ACCEPT_DEAL|MAKE_DEAL)\b",
+    re.IGNORECASE,
+)
 
 
 def extract_price_from_text(text: str) -> Optional[float]:
@@ -162,6 +169,16 @@ def extract_price_from_text(text: str) -> Optional[float]:
 
 
 def detect_accept_intent(text: str) -> bool:
-    """Check if the text contains an acceptance keyword."""
-    upper = text.upper()
-    return any(kw in upper for kw in _ACCEPT_KEYWORDS)
+    """Check if the text contains an acceptance keyword.
+
+    Uses word-boundary matching to avoid false positives from substrings.
+    Rejects negated acceptance (e.g. "I won't MAKE_DEAL at that price").
+    """
+    if not _ACCEPT_RE.search(text):
+        return False
+    # If every match is preceded by a negation, it's not a real accept
+    accept_count = len(_ACCEPT_RE.findall(text))
+    negated_count = len(_NEGATED_ACCEPT_RE.findall(text))
+    if negated_count >= accept_count:
+        return False
+    return True

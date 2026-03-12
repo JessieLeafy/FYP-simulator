@@ -30,6 +30,7 @@ negotiation:
   max_rounds: 10
   min_price: 1.0
   max_price: 500.0
+  gate_enabled: false
 
 prompt:
   include_deadline_salience: true
