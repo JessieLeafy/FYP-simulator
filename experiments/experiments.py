@@ -639,25 +639,27 @@ def run_supply_demand(
 
     run_dir = _make_run_dir(output_base, "supply_demand")
 
-    # Define conditions as overrides to market distribution parameters
+    # Define conditions as overrides to market distribution parameters.
+    # Baseline matches the YAML config.  Demand/supply shifts are +20
+    # relative to the baseline ranges.
     conditions = {
         "baseline": {
-            "market.buyer_value_min": 80.0,
-            "market.buyer_value_max": 150.0,
-            "market.seller_cost_min": 50.0,
-            "market.seller_cost_max": 120.0,
+            "market.buyer_value_min": 90.0,
+            "market.buyer_value_max": 170.0,
+            "market.seller_cost_min": 40.0,
+            "market.seller_cost_max": 90.0,
         },
         "demand_shock": {
-            "market.buyer_value_min": 100.0,
-            "market.buyer_value_max": 170.0,
-            "market.seller_cost_min": 50.0,
-            "market.seller_cost_max": 120.0,
+            "market.buyer_value_min": 110.0,
+            "market.buyer_value_max": 190.0,
+            "market.seller_cost_min": 40.0,
+            "market.seller_cost_max": 90.0,
         },
         "supply_shock": {
-            "market.buyer_value_min": 80.0,
-            "market.buyer_value_max": 150.0,
-            "market.seller_cost_min": 70.0,
-            "market.seller_cost_max": 140.0,
+            "market.buyer_value_min": 90.0,
+            "market.buyer_value_max": 170.0,
+            "market.seller_cost_min": 60.0,
+            "market.seller_cost_max": 110.0,
         },
     }
 

@@ -19,6 +19,10 @@ llm:
   max_retries: 3
 
 market:
+  # With coherent_sampling (default: true), buyer value, seller cost, and
+  # buyer budget are resampled as ratios of each item's reference price
+  # after matching.  The absolute ranges below only affect the initial draw
+  # before adjustment and patience/margin (which are not resampled).
   buyer_value_min: 80.0
   buyer_value_max: 150.0
   seller_cost_min: 50.0
