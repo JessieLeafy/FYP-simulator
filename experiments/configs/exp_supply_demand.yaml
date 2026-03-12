@@ -4,7 +4,7 @@
 # Research question: Do transaction prices and trade volume respond
 # in the expected direction when demand or supply conditions shift?
 #
-# Conditions:
+# Conditions (in experiments.py):
 #   baseline     - standard distributions
 #   demand_shock - buyer values shifted upward (+20)
 #   supply_shock - seller costs shifted upward (+20)
@@ -15,16 +15,16 @@
 agent_type: llm_free_language
 mode: market
 steps: 10
-buyers_per_step: 10
-sellers_per_step: 10
+buyers_per_step: 20
+sellers_per_step: 20
 seed: 42
 scenario_mode: distribution
 
 llm:
-  model: llama3.2:3b
+  model: Qwen2.5-14B-Instruct
   temperature: 0.2
   max_tokens: 512
-  timeout_sec: 30.0
+  timeout_sec: 60.0
   max_retries: 3
 
 # Baseline market parameters (overridden per condition)

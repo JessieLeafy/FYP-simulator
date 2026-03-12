@@ -1,24 +1,26 @@
 #!/usr/bin/env python3
 """Run ALL experiments with free-language agent + gate-off.
 
-This is the main runner for the free-language migration. It runs
-experiments in priority order with configurable scale (pilot vs full).
+All experiment parameters (agent type, steps, pairs, model, gate) are
+set in the YAML configs under experiments/configs/.  This runner just
+loads the config, applies optional CLI overrides, and calls the
+experiment function.
 
 Usage:
-    # Pilot (1 seed, reduced scale)
-    python experiments/run_free_language_all.py --scale pilot
-
-    # Full (3 seeds, production scale)
-    python experiments/run_free_language_all.py --scale full
+    # Full run (3 seeds, all experiments)
+    python experiments/run_free_language_all.py
 
     # Single experiment
-    python experiments/run_free_language_all.py --scale pilot --only A
+    python experiments/run_free_language_all.py --only A
 
-    # Custom model
-    python experiments/run_free_language_all.py --model Qwen2.5-14B-Instruct
+    # Pilot with 1 seed
+    python experiments/run_free_language_all.py --seeds 42
 
-    # HuggingFace backend
-    python experiments/run_free_language_all.py --backend huggingface --model Qwen/Qwen2.5-14B-Instruct
+    # Override backend (model is already in YAML)
+    python experiments/run_free_language_all.py --backend huggingface
+
+    # Override model at runtime
+    python experiments/run_free_language_all.py --model Qwen/Qwen2.5-14B-Instruct --backend huggingface
 """
 from __future__ import annotations
 
@@ -52,12 +54,7 @@ except ImportError:
     HAS_TQDM = False
 
 
-# ── Scale presets ─────────────────────────────────────────────────────────
-
-PILOT_SEEDS = [42]
-FULL_SEEDS = [42, 123, 456]
-
-# Experiment definitions: each returns (runner_func, kwargs_for_scale)
+# Experiment definitions
 EXPERIMENT_DEFS = {
     "A": {
         "name": "Concession Curves",
@@ -162,10 +159,13 @@ class ProgressTracker:
 
 
 # ── Experiment runners ────────────────────────────────────────────────────
+# Each function only applies condition-level overrides that are part of
+# the experiment design.  All base parameters (agent_type, steps, pairs,
+# model, gate, etc.) come from the YAML config — no silent overrides.
 
 def run_exp_a(cfg, output_base, seeds, on_session):
-    """A: Concession — rule_based + llm_free_language."""
-    cfg.agent_type = "llm_free_language"
+    """A: Concession — rule_based baseline + llm_free_language treatment."""
+    # Conditions override agent_type per arm (experiment design)
     conditions = {
         "rule_based": {"agent_type": "rule_based"},
         "llm_free_language": {"agent_type": "llm_free_language"},
@@ -175,72 +175,38 @@ def run_exp_a(cfg, output_base, seeds, on_session):
 
 
 def run_exp_b(cfg, output_base, seeds, on_session):
-    """B: Anchoring — uses llm_free_language agent."""
-    cfg.agent_type = "llm_free_language"
+    """B: Anchoring — 3 buyer-value conditions (set in experiments.py)."""
     return run_anchoring(cfg, output_base=output_base, seeds=seeds,
                          on_session=on_session)
 
 
-def run_exp_c(cfg, output_base, seeds, on_session, scale="pilot"):
-    """C: Deadline — 6/12/20 round conditions."""
-    cfg.agent_type = "llm_free_language"
+def run_exp_c(cfg, output_base, seeds, on_session):
+    """C: Deadline — 3 max_rounds conditions (experiment design)."""
     max_rounds = [6, 12, 20]
     return run_deadline(cfg, output_base=output_base, seeds=seeds,
                         max_rounds_list=max_rounds, on_session=on_session)
 
 
-def run_exp_d(cfg, output_base, seeds, on_session, scale="pilot"):
-    """D: Market Dynamics — scaled up pairs/tick."""
-    cfg.agent_type = "llm_free_language"
-    if scale == "full":
-        cfg.steps = 20
-        cfg.buyers_per_step = 25
-        cfg.sellers_per_step = 25
-    else:
-        cfg.steps = 10
-        cfg.buyers_per_step = 15
-        cfg.sellers_per_step = 15
+def run_exp_d(cfg, output_base, seeds, on_session):
+    """D: Market Dynamics — uses config as-is."""
     return run_market_dynamics(cfg, output_base=output_base, seeds=seeds,
                                on_session=on_session)
 
 
-def run_exp_e(cfg, output_base, seeds, on_session, scale="pilot"):
-    """E: Shock Response — scaled up."""
-    cfg.agent_type = "llm_free_language"
-    if scale == "full":
-        cfg.steps = 20
-        cfg.buyers_per_step = 25
-        cfg.sellers_per_step = 25
-    else:
-        cfg.steps = 10
-        cfg.buyers_per_step = 15
-        cfg.sellers_per_step = 15
+def run_exp_e(cfg, output_base, seeds, on_session):
+    """E: Shock Response — uses config as-is."""
     return run_shock_response(cfg, output_base=output_base, seeds=seeds,
                                on_session=on_session)
 
 
-def run_exp_h(cfg, output_base, seeds, on_session, scale="pilot"):
-    """H: Mechanism Comparison — scaled up pairs/tick."""
-    cfg.agent_type = "llm_free_language"
-    if scale == "full":
-        cfg.buyers_per_step = 20
-        cfg.sellers_per_step = 20
-    else:
-        cfg.buyers_per_step = 10
-        cfg.sellers_per_step = 10
+def run_exp_h(cfg, output_base, seeds, on_session):
+    """H: Mechanism Comparison — uses config as-is."""
     return run_mechanism(cfg, output_base=output_base, seeds=seeds,
                          on_session=on_session)
 
 
-def run_exp_i(cfg, output_base, seeds, on_session, scale="pilot"):
-    """I: Supply-Demand — scaled up pairs/tick."""
-    cfg.agent_type = "llm_free_language"
-    if scale == "full":
-        cfg.buyers_per_step = 20
-        cfg.sellers_per_step = 20
-    else:
-        cfg.buyers_per_step = 10
-        cfg.sellers_per_step = 10
+def run_exp_i(cfg, output_base, seeds, on_session):
+    """I: Supply-Demand — uses config as-is."""
     return run_supply_demand(cfg, output_base=output_base, seeds=seeds,
                               on_session=on_session)
 
@@ -256,41 +222,35 @@ EXP_RUNNERS = {
 }
 
 
-def estimate_sessions(key: str, scale: str, seeds: list[int]) -> int:
-    """Rough session count estimate for progress tracking."""
+def estimate_sessions(key: str, seeds: list[int], cfg=None) -> int:
+    """Rough session count estimate for progress tracking.
+
+    Uses config values when available, otherwise falls back to defaults.
+    """
     n_seeds = len(seeds)
-    if scale == "pilot":
-        estimates = {
-            "A": 2 * n_seeds * 5 * 10,    # 2 conds x seeds x steps x pairs
-            "B": 3 * n_seeds * 5 * 10,
-            "C": 3 * n_seeds * 5 * 10,
-            "D": 1 * n_seeds * 10 * 15,
-            "E": 2 * n_seeds * 10 * 15,
-            "H": 2 * n_seeds * 10 * 10,    # from config: 30 steps but mechanism uses config
-            "I": 3 * n_seeds * 10 * 10,
-        }
-    else:
-        estimates = {
-            "A": 2 * n_seeds * 5 * 10,     # 300
-            "B": 3 * n_seeds * 5 * 10,     # 450
-            "C": 3 * n_seeds * 5 * 10,     # 450
-            "D": 1 * n_seeds * 20 * 25,    # 1500
-            "E": 2 * n_seeds * 20 * 25,    # 3000
-            "H": 2 * n_seeds * 30 * 20,    # 1200 (mechanism uses config steps=30)
-            "I": 3 * n_seeds * 10 * 20,    # 1800
-        }
+    # These match the YAML configs for production (Phase D)
+    estimates = {
+        "A": 2 * n_seeds * 5 * 10,       #  300  (2 conds x seeds x 5 steps x 10 pairs)
+        "B": 3 * n_seeds * 5 * 10,       #  450  (3 anchor conds)
+        "C": 3 * n_seeds * 5 * 10,       #  450  (3 max_rounds conds)
+        "D": 1 * n_seeds * 20 * 25,      # 1500  (1 cond x 20 ticks x 25 pairs)
+        "E": 2 * n_seeds * 20 * 25,      # 3000  (2 shock conds)
+        "H": 2 * n_seeds * 10 * 20,      # 1200  (2 matchers x 10 ticks x 20 pairs)
+        "I": 3 * n_seeds * 10 * 20,      # 1800  (3 supply/demand conds)
+    }
     return estimates.get(key, 100)
 
 
 def main():
     parser = argparse.ArgumentParser(description="Run free-language experiments")
-    parser.add_argument("--scale", choices=["pilot", "full"], default="pilot")
+    parser.add_argument("--seeds", type=str, default="42,123,456",
+                        help="Comma-separated seeds (default: 42,123,456)")
     parser.add_argument("--only", type=str, default=None,
-                        help="Run only this experiment (e.g. A, C, B)")
+                        help="Run only these experiments (e.g. A, A,C,H)")
     parser.add_argument("--model", type=str, default=None,
-                        help="LLM model name override")
+                        help="LLM model name override (default: from YAML)")
     parser.add_argument("--backend", type=str, default=None,
-                        help="LLM backend (ollama or huggingface)")
+                        help="LLM backend override: ollama or huggingface")
     parser.add_argument("--device", type=str, default=None,
                         help="GPU device for HuggingFace backend")
     parser.add_argument("--temperature", type=float, default=None)
@@ -301,7 +261,7 @@ def main():
                         default="outputs/experiments_free_language")
     args = parser.parse_args()
 
-    seeds = PILOT_SEEDS if args.scale == "pilot" else FULL_SEEDS
+    seeds = [int(s.strip()) for s in args.seeds.split(",")]
 
     # Determine which experiments to run
     if args.only:
@@ -314,19 +274,17 @@ def main():
         keys = sorted(EXPERIMENT_DEFS.keys(),
                        key=lambda k: EXPERIMENT_DEFS[k]["priority"])
 
-    total_est = sum(estimate_sessions(k, args.scale, seeds) for k in keys)
+    total_est = sum(estimate_sessions(k, seeds) for k in keys)
 
     print(f"\n{'='*65}")
-    print(f"  FREE-LANGUAGE EXPERIMENTS — scale={args.scale}")
+    print(f"  FREE-LANGUAGE EXPERIMENTS")
     print(f"{'='*65}")
     print(f"  Output: {args.output_base}")
-    print(f"  Gate: OFF (explicit in configs)")
-    print(f"  Agent: llm_free_language")
     print(f"  Seeds: {seeds}")
     if args.model:
-        print(f"  Model: {args.model}")
+        print(f"  Model override: {args.model}")
     if args.backend:
-        print(f"  Backend: {args.backend}")
+        print(f"  Backend override: {args.backend}")
     print(f"  Experiments: {', '.join(keys)}")
     print(f"  Est. sessions: ~{total_est}")
     print()
@@ -340,8 +298,8 @@ def main():
         cfg = load_config(spec["config"])
         _apply_model_overrides(cfg, args)
 
-        est = estimate_sessions(key, args.scale, seeds)
-        label = f"Exp {key}: {spec['name']} [{args.scale}]"
+        est = estimate_sessions(key, seeds)
+        label = f"Exp {key}: {spec['name']}"
         tracker = ProgressTracker(est, label)
 
         def on_session(result, _t=tracker):
@@ -351,14 +309,8 @@ def main():
 
         exp_t0 = time.time()
         try:
-            # Pass scale for experiments that use it
-            import inspect
-            sig = inspect.signature(runner)
-            kwargs = dict(cfg=cfg, output_base=args.output_base,
-                          seeds=seeds, on_session=on_session)
-            if "scale" in sig.parameters:
-                kwargs["scale"] = args.scale
-            run_dir = runner(**kwargs)
+            run_dir = runner(cfg=cfg, output_base=args.output_base,
+                             seeds=seeds, on_session=on_session)
             exp_elapsed = tracker.close()
 
             # Run parse diagnostics
@@ -424,16 +376,15 @@ def main():
     # Save master summary
     summary_path = os.path.join(
         args.output_base,
-        f"free_language_{args.scale}_{time.strftime('%Y%m%d_%H%M%S')}.json",
+        f"free_language_run_{time.strftime('%Y%m%d_%H%M%S')}.json",
     )
     with open(summary_path, "w") as f:
         json.dump({
-            "scale": args.scale,
             "gate_enabled": False,
             "agent_type": "llm_free_language",
             "seeds": seeds,
-            "model": args.model,
-            "backend": args.backend,
+            "model_override": args.model,
+            "backend_override": args.backend,
             "total_elapsed_sec": round(total_elapsed, 1),
             "total_sessions": total_done,
             "total_deals": total_deals,

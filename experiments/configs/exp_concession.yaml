@@ -1,9 +1,9 @@
-# Experiment: Concession Curves
+# Experiment A: Concession Curves
 # Run multiple sessions and log offer price per round to analyse
-# concession trajectories for different agent types / patience levels.
+# concession trajectories for different agent types.
 #
 # Default conditions (in experiments.py) compare:
-#   rule_based  vs  llm_reactive  vs  llm_deliberative
+#   rule_based  vs  llm_free_language
 # The agent_type here is the base; conditions override it per-arm.
 agent_type: llm_free_language
 steps: 5
@@ -13,10 +13,10 @@ seed: 42
 scenario_mode: fixed
 
 llm:
-  model: llama3.2:3b
+  model: Qwen2.5-14B-Instruct
   temperature: 0.2
   max_tokens: 512
-  timeout_sec: 30.0
+  timeout_sec: 60.0
   max_retries: 3
 
 fixed:

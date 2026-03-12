@@ -1,8 +1,11 @@
-# Experiment: Deadline Effects
+# Experiment C: Deadline Effects
 # Run same scenario with varying max_rounds to measure agreement
 # clustering near the deadline and success rate vs horizon length.
-# Uses LLM deliberative agents to test whether deadline salience
+# Uses free-language agents to test whether deadline salience
 # prompts actually change LLM concession behaviour.
+#
+# Conditions (in experiments.py) vary max_rounds: 6, 12, 20
+# The max_rounds here is the base; the runner overrides per-arm.
 agent_type: llm_free_language
 steps: 5
 buyers_per_step: 10
@@ -11,10 +14,10 @@ seed: 42
 scenario_mode: fixed
 
 llm:
-  model: llama3.2:3b
+  model: Qwen2.5-14B-Instruct
   temperature: 0.2
   max_tokens: 512
-  timeout_sec: 30.0
+  timeout_sec: 60.0
   max_retries: 3
 
 fixed:
@@ -27,7 +30,7 @@ fixed:
   item_reference_price: 100.0
 
 negotiation:
-  max_rounds: 10
+  max_rounds: 20
   min_price: 1.0
   max_price: 500.0
   gate_enabled: false
