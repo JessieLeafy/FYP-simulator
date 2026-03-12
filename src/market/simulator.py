@@ -6,6 +6,7 @@ Supports two modes:
 """
 from __future__ import annotations
 
+import logging
 import os
 import time
 from typing import Callable, Optional
@@ -27,7 +28,12 @@ from src.market.matcher import (
     SortedMatcher,
     SurplusMaxMatcher,
 )
-from src.market.matching import generate_buyers, generate_sellers
+from src.market.matching import (
+    adjust_pair_for_item,
+    generate_buyers,
+    generate_sellers,
+    validate_market_coherence,
+)
 from src.market.shocks import apply_shocks
 from src.negotiation.session import NegotiationSession
 
@@ -231,6 +237,19 @@ class MarketSimulator:
             pairs = self.matcher.match(
                 buyers, sellers, self.catalog.items, step_rng,
             )
+
+            # Post-match coherence: resample private stats relative to
+            # item reference price so each triple is economically sensible.
+            if cfg.market.coherent_sampling and cfg.scenario_mode != "fixed":
+                for buyer, seller, item in pairs:
+                    adjust_pair_for_item(
+                        buyer, seller, item, step_rng, cfg.market,
+                    )
+
+            # Validate coherence (logs warnings for any remaining issues)
+            coherence_warnings = validate_market_coherence(pairs)
+            for w in coherence_warnings:
+                logging.getLogger(__name__).warning(w)
 
             for buyer, seller, item in pairs:
                 buyer_agent = self._create_agent(

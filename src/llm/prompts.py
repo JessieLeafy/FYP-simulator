@@ -102,8 +102,10 @@ def _decision_hint(ctx: AgentContext) -> str:
                 f"Opponent offers ${last:.2f}. Your limit is ${cap:.2f}. "
                 f"This offer is WITHIN your limit and you would gain "
                 f"${cap - last:.2f} surplus. Accept if the price is reasonable "
-                f"or time is short. If you counter, you MUST counter BELOW "
-                f"${last:.2f}. NEVER counter above the opponent's price."
+                f"or time is short. If the opponent's offer is already very "
+                f"close to the price you would counter with, prefer accepting "
+                f"over making a tiny counteroffer. If you counter, you MUST "
+                f"counter BELOW ${last:.2f}. NEVER counter above the opponent's price."
             )
         else:
             return (
@@ -117,8 +119,10 @@ def _decision_hint(ctx: AgentContext) -> str:
                 f"Opponent offers ${last:.2f}. Your minimum is ${cost:.2f}. "
                 f"This offer is ABOVE your minimum and you would gain "
                 f"${last - cost:.2f} surplus. Accept if the price is reasonable "
-                f"or time is short. If you counter, you MUST counter ABOVE "
-                f"${last:.2f}. NEVER counter below the opponent's price."
+                f"or time is short. If the opponent's offer is already very "
+                f"close to the price you would counter with, prefer accepting "
+                f"over making a tiny counteroffer. If you counter, you MUST "
+                f"counter ABOVE ${last:.2f}. NEVER counter below the opponent's price."
             )
         else:
             return (

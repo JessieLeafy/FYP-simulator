@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 from src.core.config import FixedScenarioConfig, MarketConfig
 from src.core.rng import SeededRNG
-from src.core.types import BuyerState, SellerState
+from src.core.types import BuyerState, Item, SellerState
 
 
 # ── ParameterSource ──────────────────────────────────────────────────────────
@@ -145,3 +145,69 @@ def generate_sellers(
             )
         )
     return sellers
+
+
+# ── post-match coherence adjustment ─────────────────────────────────────
+
+def adjust_pair_for_item(
+    buyer: BuyerState,
+    seller: SellerState,
+    item: Item,
+    rng: SeededRNG,
+    cfg: MarketConfig,
+) -> None:
+    """Resample buyer value, budget, and seller cost relative to the item's
+    reference price so the (buyer, seller, item) triple is economically
+    coherent.
+
+    This ensures:
+      - ``seller.cost < item.reference_price`` (seller can trade near market)
+      - ``buyer.value`` clusters around or above reference price
+      - ``buyer.budget >= buyer.value`` (budget is not the binding constraint
+        in most cases, though some tighter budgets are still possible)
+
+    Called after matching assigns an item to each pair.  Only active when
+    ``cfg.coherent_sampling`` is True.
+    """
+    ref = item.reference_price
+
+    seller.cost = round(
+        rng.uniform(ref * cfg.seller_cost_ratio_min,
+                    ref * cfg.seller_cost_ratio_max), 2,
+    )
+    buyer.value = round(
+        rng.uniform(ref * cfg.buyer_value_ratio_min,
+                    ref * cfg.buyer_value_ratio_max), 2,
+    )
+    buyer.budget = round(
+        rng.uniform(ref * cfg.buyer_budget_ratio_min,
+                    ref * cfg.buyer_budget_ratio_max), 2,
+    )
+    # Ensure budget is at least as large as value so value remains the
+    # binding reservation price (budget is a secondary constraint).
+    if buyer.budget < buyer.value:
+        buyer.budget = round(buyer.value * 1.05, 2)
+
+
+def validate_market_coherence(
+    pairs: list[tuple[BuyerState, SellerState, Item]],
+) -> list[str]:
+    """Return a list of warnings for economically incoherent triples.
+
+    Checks:
+      - seller.cost >= item.reference_price  (seller cannot break even)
+      - buyer.value <= seller.cost            (no zone of possible agreement)
+    """
+    warnings: list[str] = []
+    for buyer, seller, item in pairs:
+        if seller.cost >= item.reference_price:
+            warnings.append(
+                f"Incoherent: {seller.seller_id} cost={seller.cost:.2f} >= "
+                f"ref_price={item.reference_price:.2f} for {item.item_id}"
+            )
+        if buyer.value <= seller.cost:
+            warnings.append(
+                f"No ZOPA: {buyer.buyer_id} value={buyer.value:.2f} <= "
+                f"{seller.seller_id} cost={seller.cost:.2f}"
+            )
+    return warnings

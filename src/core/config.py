@@ -43,6 +43,17 @@ class MarketConfig:
     item_ref_price_max: float = 130.0
     num_item_types: int = 5
 
+    # Reference-price-based coherence adjustment (applied after matching).
+    # When enabled, buyer value / seller cost are resampled as ratios of
+    # the matched item's reference_price, ensuring economic coherence.
+    coherent_sampling: bool = True
+    buyer_value_ratio_min: float = 0.85    # buyer value >= ref * ratio_min
+    buyer_value_ratio_max: float = 1.50    # buyer value <= ref * ratio_max
+    seller_cost_ratio_min: float = 0.30    # seller cost >= ref * ratio_min
+    seller_cost_ratio_max: float = 0.85    # seller cost <= ref * ratio_max
+    buyer_budget_ratio_min: float = 1.00   # buyer budget >= ref * ratio_min
+    buyer_budget_ratio_max: float = 2.00   # buyer budget <= ref * ratio_max
+
 
 @dataclass
 class NegotiationConfig:
