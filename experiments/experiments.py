@@ -95,7 +95,8 @@ def run_concession(
     seeds: list[int] | None = None,
     conditions: dict[str, dict[str, Any]] | None = None,
     on_session=None,
-) -> str:
+    backend=None,
+) -> str | tuple[str, Any]:
     """Run concession-curve experiment.
 
     Conditions vary agent type or patience. For each condition and seed,
@@ -115,7 +116,7 @@ def run_concession(
     run_dir = _make_run_dir(output_base, "concession")
     all_rows: list[dict[str, Any]] = []
     session_counter = 0
-    shared_backend = None
+    shared_backend = backend
 
     for cond_name, overrides in conditions.items():
         for seed in seeds:
@@ -150,7 +151,7 @@ def run_concession(
         "git_hash": _git_hash(),
     }
     write_experiment_summary(summary, run_dir)
-    return run_dir
+    return run_dir, shared_backend
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -162,7 +163,8 @@ def run_anchoring(
     output_base: str = "outputs/experiments",
     seeds: list[int] | None = None,
     on_session=None,
-) -> str:
+    backend=None,
+) -> str | tuple[str, Any]:
     """Run anchoring experiment.
 
     Uses the agent type from base_cfg (typically llm_reactive) with
@@ -185,7 +187,7 @@ def run_anchoring(
     run_dir = _make_run_dir(output_base, "anchoring")
     all_rows: list[dict[str, Any]] = []
     session_counter = 0
-    shared_backend = None
+    shared_backend = backend
 
     for cond_name, overrides in conditions.items():
         for seed in seeds:
@@ -239,7 +241,7 @@ def run_anchoring(
         "git_hash": _git_hash(),
     }
     write_experiment_summary(summary, run_dir)
-    return run_dir
+    return run_dir, shared_backend
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -252,7 +254,8 @@ def run_deadline(
     seeds: list[int] | None = None,
     max_rounds_list: list[int] | None = None,
     on_session=None,
-) -> str:
+    backend=None,
+) -> str | tuple[str, Any]:
     """Run deadline effects experiment.
 
     Varies max_rounds across {4, 8, 16} and measures agreement-round
@@ -270,7 +273,7 @@ def run_deadline(
     all_rows: list[dict[str, Any]] = []
     session_counter = 0
     condition_stats: dict[int, dict[str, Any]] = {}
-    shared_backend = None
+    shared_backend = backend
 
     for mr in max_rounds_list:
         cond_deals = 0
@@ -320,7 +323,7 @@ def run_deadline(
         "git_hash": _git_hash(),
     }
     write_experiment_summary(summary, run_dir)
-    return run_dir
+    return run_dir, shared_backend
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -332,7 +335,8 @@ def run_market_dynamics(
     output_base: str = "outputs/experiments",
     seeds: list[int] | None = None,
     on_session=None,
-) -> str:
+    backend=None,
+) -> str | tuple[str, Any]:
     """Run market dynamics experiment.
 
     Uses market mode with >=20 ticks to observe price trends,
@@ -348,7 +352,7 @@ def run_market_dynamics(
 
     # aggregate tick stats across seeds
     all_tick_data: list[dict[str, Any]] = []
-    shared_backend = None
+    shared_backend = backend
 
     for seed in seeds:
         cfg = copy.deepcopy(base_cfg)
@@ -401,7 +405,7 @@ def run_market_dynamics(
         "git_hash": _git_hash(),
     }
     write_experiment_summary(summary, run_dir)
-    return run_dir
+    return run_dir, shared_backend
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -413,7 +417,8 @@ def run_shock_response(
     output_base: str = "outputs/experiments",
     seeds: list[int] | None = None,
     on_session=None,
-) -> str:
+    backend=None,
+) -> str | tuple[str, Any]:
     """Run shock-response experiment.
 
     Compares market dynamics with and without shocks enabled.
@@ -435,7 +440,7 @@ def run_shock_response(
     }
 
     all_tick_data: list[dict[str, Any]] = []
-    shared_backend = None
+    shared_backend = backend
 
     for cond_name, overrides in conditions.items():
         for seed in seeds:
@@ -485,7 +490,7 @@ def run_shock_response(
         "git_hash": _git_hash(),
     }
     write_experiment_summary(summary, run_dir)
-    return run_dir
+    return run_dir, shared_backend
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -498,7 +503,8 @@ def run_mechanism(
     seeds: list[int] | None = None,
     conditions: list[str] | None = None,
     on_session=None,
-) -> str:
+    backend=None,
+) -> str | tuple[str, Any]:
     """Run market mechanism comparison experiment.
 
     Compares different buyer-seller matching mechanisms (e.g. random vs
@@ -516,7 +522,7 @@ def run_mechanism(
     run_dir = _make_run_dir(output_base, "mechanism")
     all_tick_data: list[dict[str, Any]] = []
     condition_results: dict[str, list[Any]] = {c: [] for c in conditions}
-    shared_backend = None
+    shared_backend = backend
 
     for cond_name in conditions:
         for seed in seeds:
@@ -600,7 +606,7 @@ def run_mechanism(
         "git_hash": _git_hash(),
     }
     write_experiment_summary(summary, run_dir)
-    return run_dir
+    return run_dir, shared_backend
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -612,7 +618,8 @@ def run_supply_demand(
     output_base: str = "outputs/experiments",
     seeds: list[int] | None = None,
     on_session=None,
-) -> str:
+    backend=None,
+) -> str | tuple[str, Any]:
     """Run supply-demand structure experiment.
 
     Tests the law of supply and demand: do transaction prices and trade
@@ -654,7 +661,7 @@ def run_supply_demand(
     }
 
     all_condition_data: list[dict[str, Any]] = []
-    shared_backend = None
+    shared_backend = backend
 
     for cond_name, overrides in conditions.items():
         # Compute expected average values from distribution
@@ -741,7 +748,7 @@ def run_supply_demand(
         "git_hash": _git_hash(),
     }
     write_experiment_summary(summary, run_dir)
-    return run_dir
+    return run_dir, shared_backend
 
 
 # ═══════════════════════════════════════════════════════════════════════

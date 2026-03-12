@@ -134,7 +134,7 @@ class TestExperimentRunners(unittest.TestCase):
     def test_concession_experiment(self):
         from experiments.experiments import run_concession
 
-        run_dir = run_concession(
+        run_dir, _ = run_concession(
             self._base_cfg(),
             output_base=self.output_base,
             seeds=[42],
@@ -155,7 +155,7 @@ class TestExperimentRunners(unittest.TestCase):
     def test_anchoring_experiment(self):
         from experiments.experiments import run_anchoring
 
-        run_dir = run_anchoring(
+        run_dir, _ = run_anchoring(
             self._base_cfg(),
             output_base=self.output_base,
             seeds=[42],
@@ -170,7 +170,7 @@ class TestExperimentRunners(unittest.TestCase):
     def test_deadline_experiment(self):
         from experiments.experiments import run_deadline
 
-        run_dir = run_deadline(
+        run_dir, _ = run_deadline(
             self._base_cfg(),
             output_base=self.output_base,
             seeds=[42],
@@ -196,7 +196,7 @@ class TestExperimentRunners(unittest.TestCase):
             sellers_per_step=5,
             seed=42,
         )
-        run_dir = run_market_dynamics(
+        run_dir, _ = run_market_dynamics(
             cfg,
             output_base=self.output_base,
             seeds=[42],
@@ -219,7 +219,7 @@ class TestExperimentRunners(unittest.TestCase):
             sellers_per_step=5,
             seed=42,
         )
-        run_dir = run_shock_response(
+        run_dir, _ = run_shock_response(
             cfg,
             output_base=self.output_base,
             seeds=[42],
@@ -233,7 +233,7 @@ class TestExperimentRunners(unittest.TestCase):
     def test_dispatcher(self):
         from experiments.experiments import run_experiment
 
-        run_dir = run_experiment(
+        run_dir, _ = run_experiment(
             "concession",
             self._base_cfg(),
             output_base=self.output_base,

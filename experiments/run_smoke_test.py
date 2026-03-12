@@ -94,7 +94,7 @@ def step_b2_inspect_jsonl(jsonl_path: str) -> bool:
     return ok
 
 
-def step_b3_b4_concession() -> str | None:
+def step_b3_b4_concession(backend=None):
     """B3-B4: Run minimal concession experiment, verify CSV output."""
     print(f"\n{'='*60}")
     print("  B3-B4: Minimal concession experiment")
@@ -118,12 +118,13 @@ def step_b3_b4_concession() -> str | None:
               f"{status} @ {price} (round {result.rounds_taken})")
 
     print("  Running concession: 2 conditions × 1 seed × 2 steps × 2 pairs = 8 sessions")
-    run_dir = run_concession(
+    run_dir, shared_backend = run_concession(
         cfg,
         output_base=OUTPUT_BASE,
         seeds=[42],
         conditions=conditions,
         on_session=on_session,
+        backend=backend,
     )
     print(f"  Output: {run_dir}")
 
@@ -144,10 +145,10 @@ def step_b3_b4_concession() -> str | None:
     else:
         print(f"  B4 FAIL: {csv_path} not found")
 
-    return run_dir
+    return run_dir, shared_backend
 
 
-def step_b5_market_mode() -> str | None:
+def step_b5_market_mode(backend=None):
     """B5: Run minimal market-mode experiment, verify tick_stats."""
     print(f"\n{'='*60}")
     print("  B5: Minimal market-mode experiment")
@@ -165,11 +166,12 @@ def step_b5_market_mode() -> str | None:
         print(f"    {status} @ {price} (round {result.rounds_taken})")
 
     print("  Running market dynamics: 3 ticks × 5 pairs = 15 sessions")
-    run_dir = run_market_dynamics(
+    run_dir, shared_backend = run_market_dynamics(
         cfg,
         output_base=OUTPUT_BASE,
         seeds=[42],
         on_session=on_session,
+        backend=backend,
     )
     print(f"  Output: {run_dir}")
 
@@ -183,7 +185,7 @@ def step_b5_market_mode() -> str | None:
     else:
         print(f"  B5 WARN: tick_stats.csv not found (may be in subdirectory)")
 
-    return run_dir
+    return run_dir, shared_backend
 
 
 def step_b6_diagnostics(run_dirs: list[str]):
@@ -244,14 +246,10 @@ def main():
             print("\n  B2: SKIP (no JSONL found, run hf_test first)")
 
     # B3-B4: Concession
-    concession_dir = step_b3_b4_concession()
+    concession_dir, shared_backend = step_b3_b4_concession()
 
-    # Free GPU memory before loading model again for market mode
-    print("\n  Flushing GPU memory before B5...")
-    _flush_gpu()
-
-    # B5: Market mode
-    market_dir = step_b5_market_mode()
+    # B5: Market mode (reuse the same backend to avoid OOM)
+    market_dir, shared_backend = step_b5_market_mode(backend=shared_backend)
 
     # B6: Parse diagnostics
     step_b6_diagnostics([concession_dir, market_dir])

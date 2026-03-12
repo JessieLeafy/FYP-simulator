@@ -163,52 +163,53 @@ class ProgressTracker:
 # the experiment design.  All base parameters (agent_type, steps, pairs,
 # model, gate, etc.) come from the YAML config — no silent overrides.
 
-def run_exp_a(cfg, output_base, seeds, on_session):
+def run_exp_a(cfg, output_base, seeds, on_session, backend=None):
     """A: Concession — rule_based baseline + llm_free_language treatment."""
-    # Conditions override agent_type per arm (experiment design)
     conditions = {
         "rule_based": {"agent_type": "rule_based"},
         "llm_free_language": {"agent_type": "llm_free_language"},
     }
     return run_concession(cfg, output_base=output_base, seeds=seeds,
-                          conditions=conditions, on_session=on_session)
+                          conditions=conditions, on_session=on_session,
+                          backend=backend)
 
 
-def run_exp_b(cfg, output_base, seeds, on_session):
+def run_exp_b(cfg, output_base, seeds, on_session, backend=None):
     """B: Anchoring — 3 buyer-value conditions (set in experiments.py)."""
     return run_anchoring(cfg, output_base=output_base, seeds=seeds,
-                         on_session=on_session)
+                         on_session=on_session, backend=backend)
 
 
-def run_exp_c(cfg, output_base, seeds, on_session):
+def run_exp_c(cfg, output_base, seeds, on_session, backend=None):
     """C: Deadline — 3 max_rounds conditions (experiment design)."""
     max_rounds = [6, 12, 20]
     return run_deadline(cfg, output_base=output_base, seeds=seeds,
-                        max_rounds_list=max_rounds, on_session=on_session)
+                        max_rounds_list=max_rounds, on_session=on_session,
+                        backend=backend)
 
 
-def run_exp_d(cfg, output_base, seeds, on_session):
+def run_exp_d(cfg, output_base, seeds, on_session, backend=None):
     """D: Market Dynamics — uses config as-is."""
     return run_market_dynamics(cfg, output_base=output_base, seeds=seeds,
-                               on_session=on_session)
+                               on_session=on_session, backend=backend)
 
 
-def run_exp_e(cfg, output_base, seeds, on_session):
+def run_exp_e(cfg, output_base, seeds, on_session, backend=None):
     """E: Shock Response — uses config as-is."""
     return run_shock_response(cfg, output_base=output_base, seeds=seeds,
-                               on_session=on_session)
+                               on_session=on_session, backend=backend)
 
 
-def run_exp_h(cfg, output_base, seeds, on_session):
+def run_exp_h(cfg, output_base, seeds, on_session, backend=None):
     """H: Mechanism Comparison — uses config as-is."""
     return run_mechanism(cfg, output_base=output_base, seeds=seeds,
-                         on_session=on_session)
+                         on_session=on_session, backend=backend)
 
 
-def run_exp_i(cfg, output_base, seeds, on_session):
+def run_exp_i(cfg, output_base, seeds, on_session, backend=None):
     """I: Supply-Demand — uses config as-is."""
     return run_supply_demand(cfg, output_base=output_base, seeds=seeds,
-                              on_session=on_session)
+                              on_session=on_session, backend=backend)
 
 
 EXP_RUNNERS = {
@@ -292,6 +293,7 @@ def main():
     os.makedirs(args.output_base, exist_ok=True)
     t0_all = time.time()
     results_summary = {}
+    shared_backend = None  # reuse single model across all experiments
 
     for key in keys:
         spec = EXPERIMENT_DEFS[key]
@@ -309,8 +311,10 @@ def main():
 
         exp_t0 = time.time()
         try:
-            run_dir = runner(cfg=cfg, output_base=args.output_base,
-                             seeds=seeds, on_session=on_session)
+            run_dir, shared_backend = runner(
+                cfg=cfg, output_base=args.output_base,
+                seeds=seeds, on_session=on_session,
+                backend=shared_backend)
             exp_elapsed = tracker.close()
 
             # Run parse diagnostics
