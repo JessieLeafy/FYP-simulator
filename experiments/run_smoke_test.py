@@ -12,6 +12,7 @@ Usage:
 """
 from __future__ import annotations
 
+import gc
 import json
 import os
 import sys
@@ -30,6 +31,18 @@ from src.evaluation.parse_diagnostics import (
 )
 
 OUTPUT_BASE = "outputs/smoke_test"
+
+
+def _flush_gpu():
+    """Free GPU memory between experiment runs to avoid OOM."""
+    gc.collect()
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+    except ImportError:
+        pass
 
 
 def step_b2_inspect_jsonl(jsonl_path: str) -> bool:
@@ -232,6 +245,10 @@ def main():
 
     # B3-B4: Concession
     concession_dir = step_b3_b4_concession()
+
+    # Free GPU memory before loading model again for market mode
+    print("\n  Flushing GPU memory before B5...")
+    _flush_gpu()
 
     # B5: Market mode
     market_dir = step_b5_market_mode()
