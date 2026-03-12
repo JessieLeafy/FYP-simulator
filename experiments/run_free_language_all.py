@@ -110,6 +110,22 @@ def _apply_model_overrides(cfg, args):
         cfg.llm.quantize = args.quantize
 
 
+def _apply_pilot_overrides(cfg):
+    """Reduce scale for pilot runs.
+
+    Session-mode (A, B, C): 2 steps × 3 pairs = 6 sessions/condition/seed
+    Market-mode  (D, E, H, I): 3 ticks × 5 pairs = 15 sessions/condition/seed
+    """
+    if getattr(cfg, "mode", "session") == "market":
+        cfg.steps = 3
+        cfg.buyers_per_step = 5
+        cfg.sellers_per_step = 5
+    else:
+        cfg.steps = 2
+        cfg.buyers_per_step = 3
+        cfg.sellers_per_step = 3
+
+
 class ProgressTracker:
     def __init__(self, total_sessions: int, label: str = ""):
         self.total = total_sessions
@@ -229,7 +245,14 @@ def estimate_sessions(key: str, seeds: list[int], cfg=None) -> int:
     Uses config values when available, otherwise falls back to defaults.
     """
     n_seeds = len(seeds)
-    # These match the YAML configs for production (Phase D)
+
+    if cfg is not None:
+        steps = cfg.steps
+        pairs = cfg.buyers_per_step
+        n_conds = {"A": 2, "B": 3, "C": 3, "D": 1, "E": 2, "H": 2, "I": 3}
+        return n_conds.get(key, 1) * n_seeds * steps * pairs
+
+    # Defaults match production YAML configs (Phase D)
     estimates = {
         "A": 2 * n_seeds * 5 * 10,       #  300  (2 conds x seeds x 5 steps x 10 pairs)
         "B": 3 * n_seeds * 5 * 10,       #  450  (3 anchor conds)
@@ -258,9 +281,16 @@ def main():
     parser.add_argument("--max-tokens", type=int, default=None)
     parser.add_argument("--quantize", type=str, default=None,
                         help="Quantization: 4bit, 8bit, or empty")
+    parser.add_argument("--pilot", action="store_true",
+                        help="Pilot mode: 1 seed, reduced steps/pairs for quick validation")
     parser.add_argument("--output-base", type=str,
                         default="outputs/experiments_free_language")
     args = parser.parse_args()
+
+    if args.pilot:
+        args.seeds = "42"
+        if args.output_base == "outputs/experiments_free_language":
+            args.output_base = "outputs/pilot_free_language"
 
     seeds = [int(s.strip()) for s in args.seeds.split(",")]
 
@@ -275,10 +305,22 @@ def main():
         keys = sorted(EXPERIMENT_DEFS.keys(),
                        key=lambda k: EXPERIMENT_DEFS[k]["priority"])
 
-    total_est = sum(estimate_sessions(k, seeds) for k in keys)
+    # Estimate total sessions
+    if args.pilot:
+        # Pre-compute from pilot overrides
+        n_conds = {"A": 2, "B": 3, "C": 3, "D": 1, "E": 2, "H": 2, "I": 3}
+        total_est = 0
+        for k in keys:
+            spec = EXPERIMENT_DEFS[k]
+            _cfg = load_config(spec["config"])
+            _apply_pilot_overrides(_cfg)
+            total_est += n_conds.get(k, 1) * len(seeds) * _cfg.steps * _cfg.buyers_per_step
+    else:
+        total_est = sum(estimate_sessions(k, seeds) for k in keys)
 
+    mode_label = "PILOT" if args.pilot else "FULL"
     print(f"\n{'='*65}")
-    print(f"  FREE-LANGUAGE EXPERIMENTS")
+    print(f"  FREE-LANGUAGE EXPERIMENTS [{mode_label}]")
     print(f"{'='*65}")
     print(f"  Output: {args.output_base}")
     print(f"  Seeds: {seeds}")
@@ -299,8 +341,10 @@ def main():
         spec = EXPERIMENT_DEFS[key]
         cfg = load_config(spec["config"])
         _apply_model_overrides(cfg, args)
+        if args.pilot:
+            _apply_pilot_overrides(cfg)
 
-        est = estimate_sessions(key, seeds)
+        est = estimate_sessions(key, seeds, cfg) if args.pilot else estimate_sessions(key, seeds)
         label = f"Exp {key}: {spec['name']}"
         tracker = ProgressTracker(est, label)
 
@@ -384,6 +428,7 @@ def main():
     )
     with open(summary_path, "w") as f:
         json.dump({
+            "pilot": args.pilot,
             "gate_enabled": False,
             "agent_type": "llm_free_language",
             "seeds": seeds,

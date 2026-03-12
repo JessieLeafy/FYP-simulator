@@ -467,21 +467,47 @@ These are needed for free-language scientific defensibility:
 
 **Total Phase B**: ~35 min
 
-### Phase C: Pilot Reruns (1 seed each, reduced scale)
+### Phase C: Pilot Reruns (1 seed, minimal scale)
 
-| Step | Experiment | Scale | Est. Sessions | Est. Time |
+> **Status**: REDESIGNED 2026-03-12. Uses `--pilot` flag added to `run_free_language_all.py`.
+> The flag forces seed=42, and reduces scale to 2 steps × 3 pairs (session-mode) or
+> 3 ticks × 5 pairs (market-mode). This is the smallest pilot that still exercises
+> every experiment, every condition arm, both agent types, and both simulation modes.
+
+**Command**: `python experiments/run_free_language_all.py --pilot`
+
+| Step | Experiment | Mode | Scale | Est. Sessions |
 |---|---|---|---|---|
-| C1 | A: Concession (rule_based + free_language) | 2 conds × 1 seed × 5 steps × 5 pairs = 50 | 50 | 4 min |
-| C2 | C: Deadline (6/12/20 rounds) | 3 conds × 1 seed × 5 steps × 5 pairs = 75 | 75 | 6 min |
-| C3 | B: Anchoring (redesigned if feasible) | 3 conds × 1 seed × 5 steps × 5 pairs = 75 | 75 | 6 min |
-| C4 | H: Mechanism | 2 conds × 1 seed × 5 ticks × 10 pairs = 100 | 100 | 8 min |
-| C5 | I: Supply-Demand | 3 conds × 1 seed × 5 ticks × 10 pairs = 150 | 150 | 12 min |
-| C6 | D: Market Dynamics | 1 cond × 1 seed × 10 ticks × 15 pairs = 150 | 150 | 12 min |
-| C7 | F: Reputation (if ported) | 2 conds × 1 seed × 10 ticks × 5 pairs = 100 | 100 | 8 min |
+| C1 | A: Concession (rule_based + free_language) | session | 2 conds × 1 seed × 2 steps × 3 pairs | 12 |
+| C2 | C: Deadline (6/12/20 rounds) | session | 3 conds × 1 seed × 2 steps × 3 pairs | 18 |
+| C3 | B: Anchoring (low/mid/high) | session | 3 conds × 1 seed × 2 steps × 3 pairs | 18 |
+| C4 | H: Mechanism (random + surplus_max) | market | 2 conds × 1 seed × 3 ticks × 5 pairs | 30 |
+| C5 | I: Supply-Demand (baseline + 2 shifts) | market | 3 conds × 1 seed × 3 ticks × 5 pairs | 45 |
+| C6 | D: Market Dynamics | market | 1 cond × 1 seed × 3 ticks × 5 pairs | 15 |
+| C7 | E: Shock Response (no_shock + with_shock) | market | 2 conds × 1 seed × 3 ticks × 5 pairs | 30 |
 
-**Total Phase C**: ~700 sessions, ~1 hour (at ~5 sec/session)
+**Total Phase C**: ~168 sessions, ~15-40 min (at ~5-15 sec/session with HuggingFace)
 
-After each pilot: run parse diagnostics, check deal rates, check for systematic parse failures. If deal rate < 5%, increase rounds or adjust prompt before full run.
+**What the pilot catches:**
+- Crashes / parsing errors in free-language pipeline
+- HuggingFace backend loading and GPU memory issues
+- Pathological deal-rate (0% or 100%) revealing prompt/protocol failures
+- Broken metric computation (tick stats, concession CSV, anchoring CSV)
+- Parse diagnostics (auto-generated per experiment)
+- Config override bugs (agent_type, max_rounds, matcher, shock, buyer_value)
+
+**Go/no-go criteria after pilot:**
+- All 7 experiments complete without crash → GO
+- Parse success rate > 70% for free-language conditions → GO
+- Deal rate between 5% and 95% for most conditions → GO
+- If any experiment crashes or deal rate is 0%: investigate before full run
+- If parse success < 50%: adjust prompt or add retry logic before full run
+
+**Backend reuse verification:**
+The `--pilot` flag reuses the same `shared_backend` instance across all experiments
+(threaded via `run_dir, shared_backend = runner(..., backend=shared_backend)`).
+The HuggingFace model is loaded exactly once on the first `llm_free_language` condition
+(after rule_based in Exp A completes without needing the LLM).
 
 ### Phase D: Full Reruns (3 seeds, production scale)
 
