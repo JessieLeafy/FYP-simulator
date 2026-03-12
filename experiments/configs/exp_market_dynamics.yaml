@@ -12,6 +12,7 @@ scenario_mode: distribution
 llm:
   backend: huggingface
   model: Qwen/Qwen2.5-14B-Instruct
+  device: auto
   temperature: 0.2
   max_tokens: 512
   timeout_sec: 60.0
