@@ -3,7 +3,7 @@
 # clustering near the deadline and success rate vs horizon length.
 # Uses LLM deliberative agents to test whether deadline salience
 # prompts actually change LLM concession behaviour.
-agent_type: llm_deliberative
+agent_type: llm_free_language
 steps: 5
 buyers_per_step: 10
 sellers_per_step: 10
@@ -13,7 +13,7 @@ scenario_mode: fixed
 llm:
   model: llama3.2:3b
   temperature: 0.2
-  max_tokens: 256
+  max_tokens: 512
   timeout_sec: 30.0
   max_retries: 3
 

@@ -2,7 +2,7 @@
 # Market mode with demand/supply shocks enabled to observe
 # price adjustment and surplus redistribution.
 # Uses LLM reactive agents to study how LLMs adapt to shocks.
-agent_type: llm_reactive
+agent_type: llm_free_language
 mode: market
 steps: 30
 buyers_per_step: 15
@@ -13,7 +13,7 @@ scenario_mode: distribution
 llm:
   model: llama3.2:3b
   temperature: 0.2
-  max_tokens: 256
+  max_tokens: 512
   timeout_sec: 30.0
   max_retries: 3
 

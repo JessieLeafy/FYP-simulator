@@ -3,7 +3,7 @@
 # on final deal price.  Uses LLM reactive agents — the anchoring
 # effect is most interesting when the agent can be influenced by
 # its opening position.
-agent_type: llm_reactive
+agent_type: llm_free_language
 steps: 5
 buyers_per_step: 10
 sellers_per_step: 10
@@ -13,7 +13,7 @@ scenario_mode: fixed
 llm:
   model: llama3.2:3b
   temperature: 0.2
-  max_tokens: 256
+  max_tokens: 512
   timeout_sec: 30.0
   max_retries: 3
 

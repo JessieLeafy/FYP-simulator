@@ -12,7 +12,7 @@
 # The negotiation protocol, matching, and tick structure are identical
 # across conditions. Only buyer/seller structural distributions differ.
 
-agent_type: llm_reactive
+agent_type: llm_free_language
 mode: market
 steps: 10
 buyers_per_step: 10
@@ -23,7 +23,7 @@ scenario_mode: distribution
 llm:
   model: llama3.2:3b
   temperature: 0.2
-  max_tokens: 256
+  max_tokens: 512
   timeout_sec: 30.0
   max_retries: 3
 

@@ -103,8 +103,7 @@ def run_concession(
     if conditions is None:
         conditions = {
             "rule_based": {"agent_type": "rule_based"},
-            "llm_reactive": {"agent_type": "llm_reactive"},
-            "llm_deliberative": {"agent_type": "llm_deliberative"},
+            "llm_free_language": {"agent_type": "llm_free_language"},
         }
 
     run_dir = _make_run_dir(output_base, "concession")
