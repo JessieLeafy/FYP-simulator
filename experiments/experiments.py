@@ -336,10 +336,11 @@ def run_market_dynamics(
     seeds: list[int] | None = None,
     on_session=None,
     backend=None,
+    min_steps: int = 20,
 ) -> str | tuple[str, Any]:
     """Run market dynamics experiment.
 
-    Uses market mode with >=20 ticks to observe price trends,
+    Uses market mode with >=*min_steps* ticks to observe price trends,
     dispersion, and liquidity over time.
 
     Returns:
@@ -358,8 +359,8 @@ def run_market_dynamics(
         cfg = copy.deepcopy(base_cfg)
         cfg.seed = seed
         cfg.mode = "market"
-        if cfg.steps < 20:
-            cfg.steps = 20
+        if cfg.steps < min_steps:
+            cfg.steps = min_steps
         cfg.output_dir = os.path.join(run_dir, "runs")
 
         sim = _run_simulation(cfg, on_session=on_session,
