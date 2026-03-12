@@ -71,10 +71,16 @@ def _extract_offers(result) -> list[dict[str, Any]]:
     return rows
 
 
-def _run_simulation(cfg: SimulationConfig, on_session=None) -> MarketSimulator:
-    """Run a simulation and return the simulator instance."""
+def _run_simulation(cfg: SimulationConfig, on_session=None,
+                    backend=None) -> MarketSimulator:
+    """Run a simulation and return the simulator instance.
+
+    When *backend* is provided, it is reused instead of creating a new one
+    (avoids loading the LLM model multiple times and running out of VRAM).
+    After the run, the caller can pass ``sim._backend`` to the next call.
+    """
     rng = SeededRNG(cfg.seed)
-    sim = MarketSimulator(cfg, rng)
+    sim = MarketSimulator(cfg, rng, backend=backend)
     sim.run(on_session=on_session)
     return sim
 
@@ -109,6 +115,7 @@ def run_concession(
     run_dir = _make_run_dir(output_base, "concession")
     all_rows: list[dict[str, Any]] = []
     session_counter = 0
+    shared_backend = None
 
     for cond_name, overrides in conditions.items():
         for seed in seeds:
@@ -122,7 +129,9 @@ def run_concession(
                 else:
                     setattr(cfg, key, val)
 
-            sim = _run_simulation(cfg, on_session=on_session)
+            sim = _run_simulation(cfg, on_session=on_session,
+                                  backend=shared_backend)
+            shared_backend = sim._backend
             for result in sim.results:
                 session_counter += 1
                 for row in _extract_offers(result):
@@ -176,6 +185,7 @@ def run_anchoring(
     run_dir = _make_run_dir(output_base, "anchoring")
     all_rows: list[dict[str, Any]] = []
     session_counter = 0
+    shared_backend = None
 
     for cond_name, overrides in conditions.items():
         for seed in seeds:
@@ -192,7 +202,9 @@ def run_anchoring(
             cfg.fixed.buyer_value = overrides["buyer_value"]
             cfg.fixed.buyer_budget = overrides["buyer_budget"]
 
-            sim = _run_simulation(cfg, on_session=on_session)
+            sim = _run_simulation(cfg, on_session=on_session,
+                                  backend=shared_backend)
+            shared_backend = sim._backend
             for result in sim.results:
                 session_counter += 1
                 # extract first offer and final price
@@ -258,6 +270,7 @@ def run_deadline(
     all_rows: list[dict[str, Any]] = []
     session_counter = 0
     condition_stats: dict[int, dict[str, Any]] = {}
+    shared_backend = None
 
     for mr in max_rounds_list:
         cond_deals = 0
@@ -269,7 +282,9 @@ def run_deadline(
             cfg.negotiation.max_rounds = mr
             cfg.output_dir = os.path.join(run_dir, "runs")
 
-            sim = _run_simulation(cfg, on_session=on_session)
+            sim = _run_simulation(cfg, on_session=on_session,
+                                  backend=shared_backend)
+            shared_backend = sim._backend
             for result in sim.results:
                 session_counter += 1
                 cond_total += 1
@@ -333,6 +348,7 @@ def run_market_dynamics(
 
     # aggregate tick stats across seeds
     all_tick_data: list[dict[str, Any]] = []
+    shared_backend = None
 
     for seed in seeds:
         cfg = copy.deepcopy(base_cfg)
@@ -342,7 +358,9 @@ def run_market_dynamics(
             cfg.steps = 20
         cfg.output_dir = os.path.join(run_dir, "runs")
 
-        sim = _run_simulation(cfg, on_session=on_session)
+        sim = _run_simulation(cfg, on_session=on_session,
+                              backend=shared_backend)
+        shared_backend = sim._backend
 
         # write per-seed tick stats
         if sim.tick_stats:
@@ -417,6 +435,7 @@ def run_shock_response(
     }
 
     all_tick_data: list[dict[str, Any]] = []
+    shared_backend = None
 
     for cond_name, overrides in conditions.items():
         for seed in seeds:
@@ -434,7 +453,9 @@ def run_shock_response(
                 else:
                     setattr(cfg, key, val)
 
-            sim = _run_simulation(cfg, on_session=on_session)
+            sim = _run_simulation(cfg, on_session=on_session,
+                                  backend=shared_backend)
+            shared_backend = sim._backend
 
             for ts in sim.tick_stats:
                 all_tick_data.append({
@@ -495,6 +516,7 @@ def run_mechanism(
     run_dir = _make_run_dir(output_base, "mechanism")
     all_tick_data: list[dict[str, Any]] = []
     condition_results: dict[str, list[Any]] = {c: [] for c in conditions}
+    shared_backend = None
 
     for cond_name in conditions:
         for seed in seeds:
@@ -504,7 +526,9 @@ def run_mechanism(
             cfg.matching = cond_name
             cfg.output_dir = os.path.join(run_dir, "runs")
 
-            sim = _run_simulation(cfg, on_session=on_session)
+            sim = _run_simulation(cfg, on_session=on_session,
+                                  backend=shared_backend)
+            shared_backend = sim._backend
 
             # collect results for per-condition aggregates
             condition_results[cond_name].extend(sim.results)
@@ -630,6 +654,7 @@ def run_supply_demand(
     }
 
     all_condition_data: list[dict[str, Any]] = []
+    shared_backend = None
 
     for cond_name, overrides in conditions.items():
         # Compute expected average values from distribution
@@ -649,7 +674,9 @@ def run_supply_demand(
                 section, field = key.split(".", 1)
                 setattr(getattr(cfg, section), field, val)
 
-            sim = _run_simulation(cfg, on_session=on_session)
+            sim = _run_simulation(cfg, on_session=on_session,
+                                  backend=shared_backend)
+            shared_backend = sim._backend
 
             # Aggregate tick stats for this condition+seed
             if sim.tick_stats:

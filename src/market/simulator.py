@@ -40,7 +40,8 @@ class MarketSimulator:
     logged as ``tick_end`` events in the JSONL log.
     """
 
-    def __init__(self, config: SimulationConfig, rng: SeededRNG):
+    def __init__(self, config: SimulationConfig, rng: SeededRNG,
+                 backend: Optional[OllamaLLMBackend | HuggingFaceBackend] = None):
         self.config = config
         self.rng = rng
 
@@ -74,8 +75,8 @@ class MarketSimulator:
         # matcher (pluggable via Matcher interface)
         self.matcher: Matcher = self._create_matcher(config.matching)
 
-        # lazy LLM backend
-        self._backend: Optional[OllamaLLMBackend | HuggingFaceBackend] = None
+        # lazy LLM backend (reuse pre-built backend if provided)
+        self._backend: Optional[OllamaLLMBackend | HuggingFaceBackend] = backend
 
         # memory stores (for memory agents)
         # When memory_per_agent is True, each agent gets its own store
