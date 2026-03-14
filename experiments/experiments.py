@@ -750,6 +750,132 @@ def run_supply_demand(
 
 
 # ═══════════════════════════════════════════════════════════════════════
+#  E-ablation) Shock Response × Anchor Mode
+# ═══════════════════════════════════════════════════════════════════════
+
+def run_shock_anchor_ablation(
+    base_cfg: SimulationConfig,
+    output_base: str = "outputs/experiments",
+    seeds: list[int] | None = None,
+    anchor_modes: list[str] | None = None,
+    on_session=None,
+    backend=None,
+) -> str | tuple[str, Any]:
+    """Shock-response experiment crossed with anchor-mode ablation.
+
+    For each anchor mode × shock condition × seed, runs the simulator and
+    records per-tick price/liquidity data.  This tests whether the weak
+    price response to shocks is caused by the fixed prompt-level reference
+    price anchor.
+
+    Anchor modes:
+        fixed     — item reference_price unchanged across ticks (default).
+        updated   — reference_price updated to mean deal price after each tick.
+        no_anchor — reference_price removed from prompts entirely.
+
+    Returns:
+        Path to experiment run directory.
+    """
+    if seeds is None:
+        seeds = [42]
+    if anchor_modes is None:
+        anchor_modes = ["updated"]
+
+    run_dir = _make_run_dir(output_base, "shock_anchor_ablation")
+
+    shock_conditions = {
+        "no_shock": {"shock.enabled": False},
+        "with_shock": {
+            "shock.enabled": True,
+            "shock.shock_probability": 0.3,
+        },
+    }
+
+    all_tick_data: list[dict[str, Any]] = []
+    shared_backend = backend
+
+    for anchor_mode in anchor_modes:
+        for cond_name, shock_overrides in shock_conditions.items():
+            for seed in seeds:
+                cfg = copy.deepcopy(base_cfg)
+                cfg.seed = seed
+                cfg.mode = "market"
+                cfg.market.anchor_mode = anchor_mode
+                cfg.output_dir = os.path.join(run_dir, "runs")
+
+                for key, val in shock_overrides.items():
+                    section, field = key.split(".", 1)
+                    setattr(getattr(cfg, section), field, val)
+
+                sim = _run_simulation(
+                    cfg, on_session=on_session, backend=shared_backend,
+                )
+                shared_backend = sim._backend
+
+                for ts in sim.tick_stats:
+                    all_tick_data.append({
+                        "anchor_mode": anchor_mode,
+                        "condition": cond_name,
+                        "seed": seed,
+                        "tick": ts.tick,
+                        "mean_price": ts.mean_price,
+                        "price_std": ts.price_std,
+                        "liquidity": ts.liquidity,
+                        "buyer_surplus_mean": ts.buyer_surplus_mean,
+                        "seller_surplus_mean": ts.seller_surplus_mean,
+                    })
+
+    # write combined tick data as CSV
+    if all_tick_data:
+        import csv
+        fields = list(all_tick_data[0].keys())
+        path = os.path.join(run_dir, "shock_anchor_tick_data.csv")
+        with open(path, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(all_tick_data)
+
+    # per-condition summary
+    condition_summaries: dict[str, dict[str, Any]] = {}
+    for anchor_mode in anchor_modes:
+        for cond_name in shock_conditions:
+            key = f"{anchor_mode}_{cond_name}"
+            rows = [
+                r for r in all_tick_data
+                if r["anchor_mode"] == anchor_mode and r["condition"] == cond_name
+            ]
+            prices = [r["mean_price"] for r in rows if r["mean_price"] > 0]
+            liqs = [r["liquidity"] for r in rows]
+            condition_summaries[key] = {
+                "mean_price": (
+                    round(sum(prices) / len(prices), 2) if prices else 0
+                ),
+                "price_std": (
+                    round(
+                        (sum((p - sum(prices) / len(prices)) ** 2
+                             for p in prices) / len(prices)) ** 0.5, 2
+                    ) if len(prices) > 1 else 0
+                ),
+                "avg_liquidity": (
+                    round(sum(liqs) / len(liqs), 4) if liqs else 0
+                ),
+                "tick_count": len(rows),
+            }
+
+    summary = {
+        "experiment": "shock_anchor_ablation",
+        "anchor_modes": anchor_modes,
+        "shock_conditions": list(shock_conditions.keys()),
+        "seeds": seeds,
+        "total_tick_records": len(all_tick_data),
+        "condition_summaries": condition_summaries,
+        "git_hash": _git_hash(),
+    }
+    write_experiment_summary(summary, run_dir)
+    return run_dir, shared_backend
+
+
+# ═══════════════════════════════════════════════════════════════════════
 #  Dispatcher
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -761,6 +887,7 @@ EXPERIMENT_REGISTRY = {
     "shock_response": run_shock_response,
     "mechanism": run_mechanism,
     "supply_demand": run_supply_demand,
+    "shock_anchor_ablation": run_shock_anchor_ablation,
 }
 
 

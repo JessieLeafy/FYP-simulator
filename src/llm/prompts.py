@@ -485,7 +485,10 @@ def build_free_language_buyer_prompt(
 
     # Product info
     parts.append("")
-    parts.append(f"Product: {ctx.item.name} (market reference price: ${ref:.2f})")
+    if ref > 0:
+        parts.append(f"Product: {ctx.item.name} (market reference price: ${ref:.2f})")
+    else:
+        parts.append(f"Product: {ctx.item.name}")
 
     # State
     parts.append("")
@@ -592,8 +595,12 @@ def build_free_language_seller_prompt(
     cost = ctx.reservation_price
     margin = ctx.target_margin or 0.15
     ref = ctx.item.reference_price
-    # Initial asking price: well above reference to leave room for negotiation
-    initial_price = ref * (1 + margin + 0.3)
+    # Initial asking price: well above reference to leave room for negotiation.
+    # When no anchor (ref <= 0), derive from cost instead.
+    if ref > 0:
+        initial_price = ref * (1 + margin + 0.3)
+    else:
+        initial_price = cost * (1 + 2 * margin)
     remaining = ctx.max_rounds - ctx.round_number - 1
 
     parts: list[str] = []
@@ -607,7 +614,10 @@ def build_free_language_seller_prompt(
 
     # Product info
     parts.append("")
-    parts.append(f"Product: {ctx.item.name} (market reference price: ${ref:.2f})")
+    if ref > 0:
+        parts.append(f"Product: {ctx.item.name} (market reference price: ${ref:.2f})")
+    else:
+        parts.append(f"Product: {ctx.item.name}")
 
     # State
     parts.append("")

@@ -92,6 +92,14 @@ class MarketSimulator:
         self._seller_memory = MemoryStore(k=config.memory_k)
         self._agent_memories: dict[str, MemoryStore] = {}  # agent_id → store
 
+        # anchor tracking: effective reference price per item_id
+        # (used by anchor_mode "updated" and "no_anchor")
+        self._original_ref_prices: dict[str, float] = {
+            item.item_id: item.reference_price
+            for item in self.catalog.items
+        }
+        self._effective_anchors: dict[str, float] = dict(self._original_ref_prices)
+
         # collected results
         self.results: list[NegotiationResult] = []
         self.tick_stats: list[MarketTickStats] = []
@@ -251,6 +259,17 @@ class MarketSimulator:
             for w in coherence_warnings:
                 logging.getLogger(__name__).warning(w)
 
+            # ── apply anchor mode ──────────────────────────────────────
+            anchor_mode = cfg.market.anchor_mode
+            if anchor_mode == "no_anchor":
+                for _, _, item in pairs:
+                    item.reference_price = 0.0
+            elif anchor_mode == "updated":
+                for _, _, item in pairs:
+                    item.reference_price = self._effective_anchors.get(
+                        item.item_id, item.reference_price,
+                    )
+
             for buyer, seller, item in pairs:
                 buyer_agent = self._create_agent(
                     buyer_type, AgentRole.BUYER, buyer.buyer_id,
@@ -298,6 +317,20 @@ class MarketSimulator:
                 stats = compute_tick_stats(step, tick_results)
                 self.tick_stats.append(stats)
                 self.event_logger.log_tick_stats(stats)
+
+            # ── update effective anchors for next tick ────────────────
+            if cfg.market.anchor_mode == "updated" and tick_results:
+                # group deal prices by item
+                item_prices: dict[str, list[float]] = {}
+                for r in tick_results:
+                    if r.deal_made and r.deal_price is not None:
+                        item_prices.setdefault(r.item.item_id, []).append(
+                            r.deal_price,
+                        )
+                for iid, prices in item_prices.items():
+                    self._effective_anchors[iid] = (
+                        sum(prices) / len(prices)
+                    )
 
         # ── finalise ─────────────────────────────────────────────────────
         self.event_logger.close()

@@ -42,6 +42,7 @@ class MarketConfig:
     item_ref_price_min: float = 40.0
     item_ref_price_max: float = 130.0
     num_item_types: int = 5
+    anchor_mode: str = "fixed"    # "fixed" | "updated" | "no_anchor"
 
     # Reference-price-based coherence adjustment (applied after matching).
     # When enabled, buyer value / seller cost are resampled as ratios of
