@@ -1,16 +1,28 @@
 # Architecture Design Document
 
-## 1. Overview & FYP Alignment
+## 1. Overview
 
 This framework implements a multi-agent negotiation and trading simulation
-with LLM-powered agents.  Agents bargain over price using alternating offers,
+with LLM-powered agents. Agents bargain over price using alternating offers,
 respond strategically to counteroffers, and optimise outcomes subject to
 private constraints (value, cost, budget, patience).
 
+The simulator supports two agent types used in the final experiments:
+
+- **`rule_based`** — deterministic linear concession baseline (no LLM).
+- **`llm_free_language`** — natural-language LLM agent that produces prices
+  via `### PRICE($X) ###` tags and accepts via the `ACCEPT_DEAL` keyword.
+
+The framework supports two LLM backends:
+
+- **Ollama** — local HTTP inference (no API keys).
+- **HuggingFace Transformers** — GPU inference with optional quantisation.
+
 The framework enables analysis of:
-- **Negotiation patterns** — concession curves, anchoring, deadline effects, rejection reasons.
-- **Market fluctuations** — price trends and dispersion, volatility proxies, liquidity.
-- **Deal success rates** — by scenario, agent type, matching strategy, and information asymmetry.
+
+- **Negotiation patterns** — concession curves, deadline effects, rejection reasons.
+- **Market dynamics** — price trends and dispersion, volatility, liquidity.
+- **Deal success rates** — by scenario, agent type, matching strategy, and market structure.
 
 ---
 
@@ -18,7 +30,7 @@ The framework enables analysis of:
 
 ```
 ┌──────────────────────────────────────────────────┐
-│  Experiment Control (CLI / sweep / YAML configs) │
+│  Experiment Control (runners / YAML configs)      │
 ├──────────────────────────────────────────────────┤
 │  MarketSimulator  (tick loop, matching, logging) │
 ├──────────────────────────────────────────────────┤
@@ -36,12 +48,12 @@ The framework enables analysis of:
 
 | Layer | Module(s) | Owns | Does NOT own |
 |-------|-----------|------|-------------|
-| MarketSimulator | `src/market/simulator.py` | Tick loop, agent creation, matching dispatch, global JSONL log, run directory | Negotiation logic, LLM calls |
+| MarketSimulator | `src/market/simulator.py` | Tick loop, agent creation, matching dispatch, global JSONL log, run directory, anchor tracking | Negotiation logic, LLM calls |
 | NegotiationSession | `src/negotiation/session.py` | Rounds, transcript, last_offer, termination, settlement | Agent decisions, constraint rules |
 | Agents | `src/agents/*.py` | Decision policy, prompt construction, private reasoning | Validity checking, surplus |
 | ActionJudge | `src/negotiation/judge.py` | Schema validation, constraint checking, first-round corrections, enforcement policy | Agent logic, market state |
-| Settlement & Metrics | `src/evaluation/metrics.py`, `reports.py` | Surplus, welfare, aggregates, tick stats, CSV/JSON output | Negotiation flow |
-| Experiment Control | `experiments/run.py`, `sweep.py` | CLI parsing, config loading, overrides | Simulation logic |
+| Settlement & Metrics | `src/evaluation/metrics.py`, `reports.py`, `stats.py` | Surplus, welfare, aggregates, tick stats, CSV/JSON output | Negotiation flow |
+| Experiment Control | `experiments/run_free_language_all.py`, `run_shock_anchor_ablation.py`, `experiments.py` | CLI parsing, config loading, experiment orchestration | Simulation logic |
 
 ---
 
@@ -52,41 +64,52 @@ src/
 ├── core/
 │   ├── types.py          # Domain dataclasses (Item, BuyerState, SellerState,
 │   │                     #   NegotiationAction, NegotiationTurn, NegotiationResult,
-│   │                     #   Offer, Outcome, MarketTickStats, AgentContext)
-│   ├── config.py         # SimulationConfig, LLMConfig, MarketConfig, etc.
-│   ├── rng.py            # SeededRNG (deterministic randomness)
+│   │                     #   AgentContext, MarketTickStats)
+│   ├── config.py         # SimulationConfig, LLMConfig, MarketConfig,
+│   │                     #   NegotiationConfig, ShockConfig, FixedScenarioConfig,
+│   │                     #   PromptConfig, load_config
+│   ├── rng.py            # SeededRNG (deterministic randomness with fork())
 │   └── logging.py        # EventLogger (JSONL: turn, result, risk, tick_end)
 │
 ├── agents/
 │   ├── base.py           # BaseAgent (abstract: decide, agent_type)
 │   ├── rule_based.py     # RuleBasedAgent (linear concession, no LLM)
-│   ├── llm_utils.py      # to_action, fallback_action, call_llm_and_parse
-│   ├── llm_reactive.py   # LLMReactiveAgent (single-shot)
-│   ├── llm_deliberative.py  # LLMDeliberativeAgent (structured reasoning)
-│   └── memory_agent.py   # MemoryStore + MemoryAgent (episodic memory)
+│   ├── llm_free_language.py  # LLMFreeLanguageAgent (natural-language + price tags)
+│   └── llm_utils.py      # Shared LLM pipeline: call_llm_free_language,
+│                          #   call_llm_and_parse, to_action, fallback_action
 │
 ├── llm/
 │   ├── backend.py        # OllamaLLMBackend (HTTP, retry, timeout)
-│   ├── prompts.py        # Prompt builders (reactive, deliberative, memory)
-│   └── schemas.py        # Action JSON schema + FORMAT_ERROR_PROMPT
+│   ├── hf_backend.py     # HuggingFaceBackend (Transformers, GPU, quantisation)
+│   ├── prompts.py        # Prompt builders (free_language, reactive, deliberative)
+│   └── schemas.py        # Action JSON schema, FORMAT_ERROR_PROMPT, rethink prompts
 │
 ├── negotiation/
 │   ├── session.py        # NegotiationSession (first-class session object)
 │   ├── judge.py          # ActionJudge (validate + enforce)
 │   ├── constraints.py    # validate_action, ValidationResult
-│   ├── parser.py         # extract_json, validate_action_json, _attempt_repair
-│   └── protocol.py       # run_negotiation (backwards-compat wrapper)
+│   ├── parser.py         # extract_json, validate_action_json, extract_price_from_text,
+│   │                     #   detect_accept_intent, _attempt_repair
+│   └── feasibility.py    # compute_utility, is_offer_feasible (deterministic gate)
 │
 ├── market/
-│   ├── simulator.py      # MarketSimulator (orchestration)
-│   ├── matcher.py        # Matcher interface + RandomMatcher
-│   ├── matching.py       # ParameterSource, generate_buyers/sellers, match_pairs
-│   ├── catalog.py        # Catalog (item generation)
+│   ├── simulator.py      # MarketSimulator (orchestration, anchor tracking)
+│   ├── matcher.py        # Matcher interface + RandomMatcher, SurplusMaxMatcher,
+│   │                     #   SortedMatcher, RoundRobinMatcher
+│   ├── matching.py       # generate_buyers/sellers, adjust_pair_for_item,
+│   │                     #   validate_market_coherence
+│   ├── catalog.py        # Catalog (item generation with reference prices)
 │   └── shocks.py         # apply_shocks (demand/supply multipliers)
 │
 └── evaluation/
-    ├── metrics.py        # compute_metrics, compute_tick_stats
-    └── reports.py        # write_summary, write_deals_csv
+    ├── metrics.py        # compute_metrics, compute_tick_stats,
+    │                     #   compute_allocative_efficiency, compute_surplus_gini
+    ├── stats.py          # pearson_correlation, simple_linear_regression
+    ├── reports.py        # write_summary, write_deals_csv, write_concession_csv,
+    │                     #   write_deadline_csv, write_anchoring_csv,
+    │                     #   write_mechanism_csv, write_tick_stats_csv,
+    │                     #   write_experiment_summary
+    └── parse_diagnostics.py  # LLM parsing reliability metrics for free-language agents
 ```
 
 ---
@@ -97,14 +120,14 @@ src/
 
 ```python
 @dataclass
-class BuyerState:              # ~ AgentProfile (buyer)
+class BuyerState:
     buyer_id: str
     value: float               # max willingness-to-pay
     budget: float              # hard spending cap
     patience: int              # informational
 
 @dataclass
-class SellerState:             # ~ AgentProfile (seller)
+class SellerState:
     seller_id: str
     cost: float                # reservation price (floor)
     target_margin: float       # desired profit fraction
@@ -121,20 +144,19 @@ class ActionType(str, Enum):
     REJECT = "reject"          # walk away / end negotiation
 
 @dataclass
-class NegotiationAction:       # ~ Action
+class NegotiationAction:
     action: ActionType
     offer_price: Optional[float]
     message_public: str        # visible to opponent
     rationale_private: str     # private reasoning (not shared)
-
-@dataclass
-class Offer:
-    price: float
-    round_number: int
-    proposer_role: AgentRole
 ```
 
-**LLM action schema (strict JSON):**
+**Free-language output format:**
+The `llm_free_language` agent produces natural text containing price tags
+(`### PRICE($X) ###`) and optional accept keywords (`ACCEPT_DEAL`). The
+parser in `llm_utils.py` extracts actions from this format.
+
+**Structured JSON schema (used by parser internals):**
 ```json
 {
     "action": "offer" | "counter" | "accept" | "reject",
@@ -154,22 +176,14 @@ class NegotiationSession:
     current_round: int
     is_complete: bool
     judge: ActionJudge                 # validates each action
+    gate_enabled: bool                 # deterministic feasibility gate toggle
 ```
 
 ### 4.4 Outcome
 
 ```python
 @dataclass
-class Outcome:
-    status: str                    # "deal" | "no_deal" | "timeout"
-    agreed_price: Optional[float]
-    rounds: int
-    buyer_surplus: float           # value - price
-    seller_surplus: float          # price - cost
-    welfare: float                 # buyer_surplus + seller_surplus
-
-@dataclass
-class NegotiationResult:           # full result record
+class NegotiationResult:
     item: Item
     buyer_id: str
     seller_id: str
@@ -222,6 +236,7 @@ All events are written to `events.jsonl` as newline-delimited JSON.
     "action": "offer",
     "offer_price": 85.0,
     "message_public": "I propose $85.00.",
+    "raw_llm_output": "...",
     "timestamp": 1700000000.0
 }
 ```
@@ -289,26 +304,28 @@ The validation pipeline has three layers, consolidated under `ActionJudge`:
 LLM raw text
     │
     ▼
-[Parser] extract_json → validate_action_json   (schema-level)
+[Parser] extract_price_from_text / detect_accept_intent    (free-language)
+         OR extract_json → validate_action_json             (structured)
     │
     ▼
-[Judge]  correct_first_round → validate → enforce  (domain-level)
+[Judge]  correct_first_round → validate → enforce           (domain-level)
     │
     ▼
 Valid NegotiationAction  or  REJECT + risk_event
 ```
 
-1. **Parser** (`parser.py`): Extracts JSON from LLM output using 4 strategies
-   (direct, markdown fences, brace extraction, heuristic repair).  Validates
-   required fields and schema.  One retry with `FORMAT_ERROR_PROMPT` if invalid.
+1. **Parser** (`parser.py`): For free-language agents, extracts prices via
+   `### PRICE($X) ###` tags and detects accept intent via `ACCEPT_DEAL`.
+   For structured agents, extracts JSON using 4 strategies (direct, markdown
+   fences, brace extraction, heuristic repair). Validates required fields
+   and schema. One retry with `FORMAT_ERROR_PROMPT` if invalid.
 
 2. **ActionJudge** (`judge.py`): Receives a parsed `NegotiationAction` and:
    - Corrects first-round illegalities (COUNTER→OFFER, ACCEPT/REJECT→OFFER)
    - Validates against hard constraints (budget, cost, bounds, logic)
    - Enforces: invalid actions are replaced with REJECT + risk event logged
 
-3. **Enforcement policy**: Invalid → REJECT (configurable in future:
-   repeat-turn, default-offer, etc.).
+3. **Enforcement policy**: Invalid → REJECT with risk event.
 
 ---
 
@@ -323,80 +340,116 @@ MarketSimulator.run()
 │   ├── generate_sellers(rng, count, tick, market_cfg, fixed_cfg)
 │   ├── apply_shocks(buyers, sellers, rng, shock_cfg)
 │   ├── pairs = matcher.match(buyers, sellers, items, rng)
+│   ├── [coherent_sampling] adjust_pair_for_item(buyer, seller, item, ...)
+│   ├── validate_market_coherence(pairs)
+│   ├── [anchor_mode] apply anchor adjustments to item reference prices
 │   │
 │   ├── for (buyer, seller, item) in pairs:
 │   │   ├── create buyer_agent, seller_agent
 │   │   ├── session = NegotiationSession(...)
 │   │   ├── result = session.run()
-│   │   ├── log_result(result)
-│   │   └── feed memory agents
+│   │   └── log_result(result)
 │   │
-│   └── [market mode] compute_tick_stats → log_tick_stats
+│   ├── [market mode] compute_tick_stats → log_tick_stats
+│   └── [anchor_mode=updated] update effective anchors from deal prices
 │
 ├── compute_metrics(all_results)
 ├── write_summary(metrics, run_dir)
 └── write_deals_csv(results, run_dir)
 ```
 
-### Matcher interface
+### Anchor modes
+
+The simulator supports three anchor modes for the item reference price
+provided in agent prompts, controlled by `market.anchor_mode`:
+
+| Mode | Behaviour |
+|------|-----------|
+| `fixed` | Reference price is unchanged across ticks (default). |
+| `updated` | Reference price is updated to the mean deal price after each tick. |
+| `no_anchor` | Reference price is set to 0.0, effectively removing the anchor from prompts. |
+
+### Matching strategies
 
 ```python
 class Matcher(ABC):
     @abstractmethod
     def match(self, buyers, sellers, items, rng) -> list[tuple]:
         ...
-
-class RandomMatcher(Matcher):  # current implementation
-    ...
-# Future: PreferenceMatcher, AuctionMatcher, etc.
 ```
+
+| Strategy | Class | Description |
+|----------|-------|-------------|
+| `random` | `RandomMatcher` | Random 1:1 pairing (baseline) |
+| `surplus_max` | `SurplusMaxMatcher` | Greedy max-ZOPA pairing (oracle upper bound) |
+| `sorted` | `SortedMatcher` | Pairs by descending value/cost (practical heuristic) |
+| `round_robin` | `RoundRobinMatcher` | Deterministic repeated pairings across ticks |
+
+Configured via `matching:` in YAML config.
 
 ---
 
 ## 8. Experiment Workflow
 
-### 8.1 Single run
+### 8.1 Running experiments
 
 ```bash
-# Session mode (legacy, default):
-python experiments/run.py --config experiments/configs/baseline.yaml
+# Run all six main experiments (3 seeds: 42, 123, 456)
+python experiments/run_free_language_all.py
 
-# Market mode (with tick stats):
-python experiments/run.py --config experiments/configs/baseline.yaml \
-    --mode market --ticks 10 --num_buyers 20 --num_sellers 20
+# Run the anchor-mode ablation extension
+python experiments/run_shock_anchor_ablation.py
 
-# Fixed scenario:
-python experiments/run.py --config experiments/configs/fixed_single.yaml \
-    --mode market
+# Single experiment only
+python experiments/run_free_language_all.py --only A
+
+# Pilot mode (1 seed, reduced scale)
+python experiments/run_free_language_all.py --pilot
+
+# Override LLM backend
+python experiments/run_free_language_all.py --backend ollama --model llama3.2:3b
 ```
 
-### 8.2 Parameter sweep
+### 8.2 Experiment orchestration
 
-```bash
-python experiments/sweep.py --config experiments/configs/baseline.yaml \
-    --seeds 42 123 456 --agent_types rule_based llm_reactive \
-    --max_rounds_list 5 10 15 --steps 3
-```
+`experiments/experiments.py` defines the core experiment functions:
 
-### 8.3 YAML config example (market mode)
+| Function | Experiment |
+|----------|-----------|
+| `run_concession()` | Exp 1 — Concession dynamics |
+| `run_deadline()` | Exp 2 — Deadline pressure |
+| `run_market_dynamics()` | Exp 3 — Market dynamics |
+| `run_shock_response()` | Exp 4 — Supply shock |
+| `run_mechanism()` | Exp 5 — Mechanism comparison |
+| `run_supply_demand()` | Exp 6 — Supply-demand shift |
+| `run_shock_anchor_ablation()` | Exp 4 extension — Anchor ablation |
+
+### 8.3 YAML config example
 
 ```yaml
+agent_type: llm_free_language
 mode: market
-agent_type: rule_based
-steps: 10          # = num_ticks in market mode
-buyers_per_step: 20
-sellers_per_step: 20
+steps: 10
+buyers_per_step: 10
+sellers_per_step: 10
 seed: 42
-matching: random
+scenario_mode: distribution
+
+llm:
+  backend: huggingface
+  model: Qwen/Qwen2.5-14B-Instruct
+  device: auto
+  temperature: 0.2
+  max_tokens: 512
 
 negotiation:
-  max_rounds: 8
+  max_rounds: 10
   min_price: 1.0
   max_price: 500.0
+  gate_enabled: false
 
 shock:
-  enabled: true
-  shock_probability: 0.2
+  enabled: false
 ```
 
 ---
@@ -407,8 +460,9 @@ shock:
 
 ```python
 class MarketSimulator:
-    def __init__(self, config: SimulationConfig, rng: SeededRNG): ...
-    def run(self) -> list[NegotiationResult]: ...
+    def __init__(self, config: SimulationConfig, rng: SeededRNG,
+                 backend: Optional[OllamaLLMBackend | HuggingFaceBackend] = None): ...
+    def run(self, on_session: Callable | None = None) -> list[NegotiationResult]: ...
     # attributes:
     matcher: Matcher
     results: list[NegotiationResult]
@@ -422,13 +476,15 @@ class MarketSimulator:
 class NegotiationSession:
     def __init__(self, buyer_agent, seller_agent, item, buyer, seller,
                  max_rounds=10, min_price=1.0, max_price=500.0,
-                 event_logger=None, time_step=0): ...
+                 event_logger=None, time_step=0,
+                 gate_enabled=False): ...
     def run(self) -> NegotiationResult: ...
     # attributes:
     transcript: list[NegotiationTurn]
     risk_events: list[dict]
     last_offer: Optional[float]
     is_complete: bool
+    gate_enabled: bool
     result: Optional[NegotiationResult]  # property
 ```
 
@@ -442,17 +498,6 @@ class ActionJudge:
     def enforce(self, role, action, buyer, seller, last_offer, item, round_number, time_step=0) -> tuple[NegotiationAction, Optional[dict]]: ...
 ```
 
-### Matcher
-
-```python
-class Matcher(ABC):
-    @abstractmethod
-    def match(self, buyers, sellers, items, rng) -> list[tuple[BuyerState, SellerState, Item]]: ...
-
-class RandomMatcher(Matcher):
-    def match(self, buyers, sellers, items, rng) -> list[tuple[BuyerState, SellerState, Item]]: ...
-```
-
 ### LLM Agent Pipeline
 
 ```python
@@ -460,6 +505,7 @@ class RandomMatcher(Matcher):
 def to_action(obj: dict) -> NegotiationAction: ...
 def fallback_action(ctx: AgentContext) -> NegotiationAction: ...
 def call_llm_and_parse(backend, prompt, ctx) -> NegotiationAction: ...
+def call_llm_free_language(backend, prompt, ctx) -> NegotiationAction: ...
 ```
 
 ### Metrics
@@ -467,80 +513,16 @@ def call_llm_and_parse(backend, prompt, ctx) -> NegotiationAction: ...
 ```python
 def compute_metrics(results: list[NegotiationResult]) -> dict[str, Any]: ...
 def compute_tick_stats(tick: int, results: list[NegotiationResult]) -> MarketTickStats: ...
+def compute_allocative_efficiency(results: list[NegotiationResult]) -> float: ...
+def compute_surplus_gini(surpluses: list[float]) -> float: ...
 ```
 
 ---
 
-## 10. Migration Checklist
+## 10. Communication Strategies
 
-### What changed to fix each mismatch
-
-| # | Mismatch | Fix | Files changed |
-|---|----------|-----|--------------|
-| 1 | Private cross-agent imports (`_to_action`, `_fallback_action`) | Extracted to public `src/agents/llm_utils.py`; agents now import from there; old names kept as aliases | `llm_utils.py` (new), `llm_reactive.py`, `llm_deliberative.py`, `memory_agent.py` |
-| 2 | Scattered validation logic (parser + constraints + protocol) | Created `ActionJudge` in `judge.py` consolidating first-round corrections + constraint checks + enforcement. `NegotiationSession` delegates to Judge. | `judge.py` (new), `session.py` (new), `protocol.py` (now wrapper) |
-| 3 | No market-level tick loop / stats | Added `MarketTickStats` dataclass, `compute_tick_stats()`, `log_tick_stats()`, `Matcher` interface. Simulator now computes per-tick stats in market mode. | `types.py`, `metrics.py`, `logging.py`, `matcher.py` (new), `simulator.py`, `run.py` |
-
-### Before → After responsibility mapping
-
-| Responsibility | Before | After |
-|---------------|--------|-------|
-| Negotiation loop | `run_negotiation()` function in `protocol.py` | `NegotiationSession.run()` in `session.py` (`protocol.py` is a thin wrapper) |
-| First-round corrections | Inline in `run_negotiation()` | `ActionJudge.correct_first_round()` |
-| Constraint validation | `constraints.validate_action()` called in `run_negotiation()` | `ActionJudge.validate()` → `constraints.validate_action()` |
-| Auto-correction policy | Inline in `run_negotiation()` | `ActionJudge.enforce()` |
-| Surplus calculation | Inline in `run_negotiation()` | `NegotiationSession._settle()` |
-| LLM parse-retry pipeline | Duplicated in each LLM agent's `_call_and_parse` | `llm_utils.call_llm_and_parse()` (shared) |
-| Buyer-seller matching | `match_pairs()` function | `Matcher.match()` interface + `RandomMatcher` |
-| Tick-level stats | Not computed | `compute_tick_stats()` + `log_tick_stats()` in market mode |
-
-### How to run
-
-**Session mode (old behaviour, unchanged):**
-```bash
-python experiments/run.py --config experiments/configs/baseline.yaml \
-    --steps 5 --seed 42
-```
-
-**Market mode (new):**
-```bash
-python experiments/run.py --config experiments/configs/baseline.yaml \
-    --mode market --ticks 10 --num_buyers 20 --num_sellers 20 --seed 42
-```
-
----
-
-## 11. TODO / Future Extensions
-
-| Priority | Extension | Status | Notes |
-|----------|-----------|--------|-------|
-| High | Order book / double auction matching | Partial | `SurplusMaxMatcher`, `SortedMatcher`, `RoundRobinMatcher` implemented; double auction deferred |
-| High | Personality/style ablations | Done | `PromptConfig.communication_strategy` + `_COMMUNICATION_STRATEGIES` dict in `prompts.py` |
-| Medium | Multi-issue negotiation | — | Extend `Offer` to carry `{issue: value}` dict |
-| Medium | Reputation system | Done | `ReputationStore` + `ReputationAgent` in `memory_agent.py`; opponent-indexed memory |
-| Medium | Cross-run memory persistence | — | Serialise `MemoryStore` to disk between runs |
-| Medium | Feasibility gate toggle | Done | `NegotiationConfig.gate_enabled`; session respects flag |
-| Medium | Allocative efficiency metric | Done | `compute_allocative_efficiency()`, `compute_surplus_gini()` in `metrics.py` |
-| Low | Experiment tracking (MLflow/W&B) | — | Wrap `write_summary` with tracker API |
-| Low | Parallel session execution | — | Thread pool for independent sessions within a tick |
-| Low | Config validation | — | Warn on unknown YAML keys via `_dict_to_config` |
-
----
-
-## 12. Matching Strategies
-
-| Strategy | Class | Description |
-|----------|-------|-------------|
-| `random` | `RandomMatcher` | Random 1:1 pairing (baseline) |
-| `surplus_max` | `SurplusMaxMatcher` | Greedy max-ZOPA pairing (oracle upper bound) |
-| `sorted` | `SortedMatcher` | Pairs by descending value/cost (practical heuristic) |
-| `round_robin` | `RoundRobinMatcher` | Deterministic repeated pairings across ticks (reputation experiments) |
-
-Configured via `matching:` in YAML or `--matching` CLI flag.
-
----
-
-## 13. Communication Strategies (Experiment G)
+Prompt-level communication strategy injection is supported via
+`prompt.communication_strategy` in the YAML config:
 
 | Strategy | Description |
 |----------|-------------|
@@ -549,14 +531,16 @@ Configured via `matching:` in YAML or `--matching` CLI flag.
 | `collaborative` | Cooperative, friendly; acknowledge opponent's interests |
 | `strategic` | Maximise advantage; may exaggerate or withhold true constraints |
 
-Configured via `prompt.communication_strategy` in YAML.
-
 ---
 
-## 14. Reputation System (Experiment F)
+## 11. Feasibility Gate
 
-- `ReputationStore` tracks per-opponent deal history: deal rate, avg price, avg rounds, inferred style
-- `ReputationAgent` extends `MemoryAgent` with opponent-specific reputation context
-- `build_reputation_context()` formats reputation data for prompt injection
-- `RoundRobinMatcher` ensures repeated pairings for reputation to develop
-- `memory_per_agent: true` gives each agent its own `MemoryStore` (vs. shared role-level stores)
+The deterministic feasibility gate (`src/negotiation/feasibility.py`) checks
+whether the opponent's standing offer yields positive surplus for the agent.
+When the condition is met and `gate_enabled=True`, the agent accepts without
+calling the LLM.
+
+In the final experiments, the gate is **disabled** (`gate_enabled: false` in
+all YAML configs) so that all decisions flow through the LLM agent. The gate
+remains in the codebase for ablation purposes and is tested in
+`tests/test_feasibility_gate.py`.
