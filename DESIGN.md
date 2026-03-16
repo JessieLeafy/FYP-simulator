@@ -94,8 +94,8 @@ src/
 │
 ├── market/
 │   ├── simulator.py      # MarketSimulator (orchestration, anchor tracking)
-│   ├── matcher.py        # Matcher interface + RandomMatcher, SurplusMaxMatcher,
-│   │                     #   SortedMatcher, RoundRobinMatcher
+│   ├── matcher.py        # Matcher interface + RandomMatcher, SurplusMaxMatcher
+│   │                     #   (also SortedMatcher, RoundRobinMatcher — unused in final experiments)
 │   ├── matching.py       # generate_buyers/sellers, adjust_pair_for_item,
 │   │                     #   validate_market_coherence
 │   ├── catalog.py        # Catalog (item generation with reference prices)
@@ -378,14 +378,19 @@ class Matcher(ABC):
         ...
 ```
 
+The final experiments use only two matchers:
+
 | Strategy | Class | Description |
 |----------|-------|-------------|
-| `random` | `RandomMatcher` | Random 1:1 pairing (baseline) |
-| `surplus_max` | `SurplusMaxMatcher` | Greedy max-ZOPA pairing (oracle upper bound) |
-| `sorted` | `SortedMatcher` | Pairs by descending value/cost (practical heuristic) |
-| `round_robin` | `RoundRobinMatcher` | Deterministic repeated pairings across ticks |
+| `random` | `RandomMatcher` | Random 1:1 pairing (baseline, default) |
+| `surplus_max` | `SurplusMaxMatcher` | Greedy max-ZOPA pairing (used in Experiment 5) |
 
-Configured via `matching:` in YAML config.
+`SortedMatcher` and `RoundRobinMatcher` also exist in the codebase but are
+not used in any final experiment. They were built for planned reputation and
+communication experiments that were descoped from the thesis.
+
+Configured via `matching:` in YAML config or overridden per-condition in
+`experiments/experiments.py`.
 
 ---
 
