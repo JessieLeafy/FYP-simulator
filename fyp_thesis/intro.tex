@@ -1,0 +1,145 @@
+% ───────────────────────────────────────────────────────────────────
+% Introduction
+% ───────────────────────────────────────────────────────────────────
+
+\label{sec:intro}
+
+\subsection{Background}
+
+Large language models are increasingly deployed as autonomous agents that
+interact with environments, tools, and other agents.  Recent work has shown
+that LLM-powered agents can exhibit emergent social behaviours in open-ended
+simulation~\cite{park2023generative}, coordinate within multi-agent
+frameworks~\cite{wu2023autogen}, and interleave reasoning with
+action~\cite{yao2023react}.  A natural extension of this research agenda is
+to ask whether LLM agents can engage in structured economic interaction:
+bilateral bargaining under private constraints, with real stakes, limited
+information, and measurable outcomes.  Open-ended social simulation
+demonstrates that LLM agents can sustain coherent dialogue and exhibit
+personality-consistent behaviour, but it does not require agents to satisfy
+hard economic feasibility constraints, discover prices, or produce outcomes
+that can be evaluated against classical economic benchmarks.  Structured
+economic interaction imposes a qualitatively different test.
+
+Bilateral bargaining is among the best-characterised settings in economic
+theory.  Rubinstein's alternating-offer model~\cite{rubinstein1982} predicts
+that patient agents extract larger surplus shares through time-preference
+discounting.  The anchoring literature~\cite{tversky1974} establishes anchoring
+as a general cognitive heuristic; in negotiation contexts, Galinsky and
+Mussweiler~\cite{galinsky2001} show that first offers systematically bias
+final agreements.  Deadline pressure effects have been documented in human
+experiments~\cite{roth1988deadline}, and decentralised bilateral markets are
+expected to produce equilibrium prices with persistent price
+dispersion~\cite{rubinstein1985}.  These theoretical predictions provide
+reference points against which observed agent behaviour can be compared
+directionally, though the extent to which any simulator-based evaluation
+constitutes a clean test depends on the prompt and protocol design.
+
+Despite growing interest in LLM negotiation, existing studies typically
+focus on multi-issue dialog games~\cite{lewis2017dealornodeal,
+abdelnabi2024llmdeliberation}, personality-driven
+interaction~\cite{mao2024personalities}, or assistive human--AI
+bargaining~\cite{chawla2023assistive}.  These designs evaluate negotiation
+capacity, but do not systematically test LLM agents against the specific
+quantitative predictions of classical bargaining theory, nor do they
+examine whether LLM agents reproduce qualitative behavioural patterns
+documented in human negotiation studies -- such as deadline-driven
+concession acceleration~\cite{roth1988deadline}, Boulware-style
+tactical hardening, or first-offer anchoring~\cite{galinsky2001}.
+Furthermore, most studies operate at a single level of analysis without
+connecting micro-level bargaining outcomes to macro-level market dynamics
+within a single controlled platform. As automated negotiation expands into consumer and enterprise markets~\cite{davidson2024automatedrisky}, understanding these behavioral gaps becomes increasingly critical. These developments motivate a systematic, simulator-based approach to evaluating how LLM agents navigate complex bargaining environments.
+
+\subsection{Problem Statement}
+
+The central question motivating this thesis is:
+
+\begin{quote}
+\textit{What patterns of concession, price discovery, and market efficiency
+emerge when LLM agents negotiate under controlled bilateral bargaining
+conditions, and to what extent are observed outcomes shaped by the
+informational and protocol environment in which agents operate?}
+\end{quote}
+
+Understanding these behaviors requires looking beyond LLM outputs in isolation. Instead, the entire simulator's design—from the prompt architecture shaping agent reasoning to the interaction protocols governing turns and termination—critically determines the observable results. These design choices must be made explicit and independently
+configurable to enable defensible interpretation of experimental findings.
+A further challenge is attribution: any observed outcome in an LLM
+simulation reflects the combined system of model, prompt, and protocol.
+Disentangling the contribution of LLM decision-making from the contribution
+of simulator infrastructure requires careful logging, explicit ablation
+studies, and conservative interpretation.  This thesis builds a platform
+designed to support such analysis, served as the instrument; the primary subject of investigation is the behaviour of
+LLM agents within it.
+
+\subsection{Research Objectives}
+
+A configurable multi-agent negotiation simulator was designed and
+implemented to support the empirical programme described below.  The system
+enforces private economic constraints, supports a structured alternating-offers
+protocol, and provides event-level logging sufficient for session and
+market-level analysis.  The research objectives are:
+
+\begin{enumerate}
+    \item Characterise LLM bargaining behaviour empirically---concession
+    dynamics, deadline sensitivity, and deal success---and compare observed
+    patterns directionally against predictions from classical bargaining
+    theory.
+
+    \item Investigates how LLM-agent markets respond to shifting fundamentals—such as supply-demand fluctuations and external shocks—as well as informational influences like reference-price anchoring. Furthermore, it assesses whether reliable price discovery emerges from bilateral negotiations under these controlled conditions
+
+    \item Evaluate whether institutional mechanism design (buyer-seller matching
+    algorithms) can improve market-level welfare independently of agent's own negotiation capabilities.
+
+    \item Identify how simulator design choices---prompt architecture,
+    feasibility enforcement, and reference-price framing---function as
+    protocol-level design considerations, and report methodological cautions relevant to
+    LLM-based economic simulation.
+\end{enumerate}
+
+\subsection{Contributions}
+
+This thesis makes four contributions.
+
+\textbf{1.\ Empirical characterisation of LLM bargaining behaviour.}
+LLM agents produce concave (Boulware-style) concession trajectories with
+a 5.65:1 buyer-to-seller concession ratio, and deadline pressure
+concentrates settlement in the final rounds (82.4\% of deals close in the
+final two rounds under a six-round horizon).  Price stickiness is
+substantial: demand and supply elasticities of 0.275 and 0.035
+respectively indicate that agents update prices only weakly in response to
+changing fundamentals.  Several of these patterns are directionally
+consistent with behavioural patterns documented in the human negotiation
+literature, though no direct human comparison was conducted and the
+underlying mechanisms may differ.
+
+\textbf{2.\ Demonstration that prompt-embedded information is a first-order
+determinant of market outcomes.}  An anchor-environment experiment
+(Experiment~4 extension) shows that the reference-price signal in the agent prompt
+produces a mean transaction price spread of approximately \$30 across anchor
+modes under identical fundamentals, and reverses the sign of shock effects
+between anchor conditions.  This establishes prompt-level information
+framing as a first-order experimental variable in LLM-based market
+simulation, with direct implications for the interpretation of all other
+experiments.
+
+\textbf{3.\ Identification of a micro--macro capability gap.} LLM agents function as effective instruments for deal-closing—demonstrating a 78.6\% overall success rate and 81\% market liquidity—yet remain ineffective at driving price discovery. In these simulations, prices exhibit persistent dispersion without convergence, and elasticities remain near zero. This disconnection between individual agreement-seeking and aggregate price efficiency identifies two distinct dimensions of negotiation competence that are often conflated in existing evaluation frameworks.
+
+\textbf{4.\ A configurable experimental platform} connecting micro-level
+bargaining to macro-level market dynamics, with hard private constraints,
+structured event logging, and explicit controls over design choices including
+gate status, prompt architecture, reference-price mode, and matching
+algorithm.  The platform enables the findings above and provides a
+foundation for future ablation and extension.
+
+The remainder of this thesis is organised as follows.
+Section~\ref{sec:related} reviews related work in LLM-based simulation, LLM
+negotiation, and classical bargaining theory.
+Section~\ref{sec:formulation} describes the problem formulation and simulator
+architecture.
+Section~\ref{sec:experiments} details the methodology and experimental design
+for all experiments.
+Section~\ref{sec:results} presents results and analysis.
+Section~\ref{sec:discussion} discusses implications, limitations, and the
+role of simulator design choices as experimental variables.
+Section~\ref{sec:conclusion} concludes and identifies directions for future
+work.

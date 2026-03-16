@@ -1,0 +1,551 @@
+% ═══════════════════════════════════════════════════════════════════
+%  Methodology and Experimental Design
+% ═══════════════════════════════════════════════════════════════════
+
+\label{sec:experiments}
+
+This section describes the methodology and experimental design for all experiments conducted on the platform.  The experiments are organised into three levels of analysis---micro-level agent bargaining behaviour (Experiments~1, 2), macro-level market outcomes (Experiments~3, 4, 6, and the Experiment~4 anchor-environment extension), and institutional mechanism effects (Experiment~5)---reflecting the platform's ability to connect individual negotiation dynamics to aggregate market properties within a single system.  Results are reported in Section~\ref{sec:results}.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Experimental Philosophy}
+\label{sec:exp-philosophy}
+
+The experimental programme is designed around four principles.
+
+First, \emph{controlled comparison against theory}.  Each experiment targets a specific prediction from classical bargaining or market theory and varies a single independent variable while holding all other conditions constant.  This enables directional comparison against theoretical baselines.
+
+Second, \emph{micro-to-macro connection}.  The platform supports experiments at both the individual session level (where agent behaviour can be observed turn-by-turn) and the market level (where aggregate statistics emerge from many sessions per tick).  This multi-level design enables investigation of whether micro-level bargaining patterns translate into macro-level market regularities.
+
+Third, \emph{transparent protocol reporting}.  The bargaining protocol and prompt architecture are active throughout all experiments and shape the action space available to agents.  Rather than treating these as invisible background conditions, we report their design rationale and discuss their implications for interpretation.  Prompt architecture is treated as a fixed protocol parameter in the current study; ablation is identified as a priority for future work.
+
+Fourth, \emph{behavioural interpretability}.  Wherever possible, we connect observed outcomes---deal success rates, concession speeds, surplus splits---to behavioural patterns documented in the human negotiation literature, asking whether LLM agents produce qualitatively similar dynamics under equivalent structural conditions.  This framing enables interpretation of results through both an engineering lens (does the simulator work?) and a behavioural lens (do the agents negotiate in recognisable ways?).
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Common Setup}
+\label{sec:common-setup}
+
+All experiments share the following configuration unless explicitly overridden.
+
+\paragraph{Model and inference.}
+All experiments use \texttt{Qwen/Qwen2.5-14B-Instruct} served via HuggingFace Transformers at temperature~0.2, with a maximum output length of 512~tokens and a 60-second timeout per call.  Failed LLM calls are retried once with a format-correction prompt (the rethink loop described in Section~\ref{sec:validation}).  If the retry also fails to parse, a \textsc{reject} action is returned, terminating the session without a deal; if the retry parses but remains infeasible, the action is passed through to the \texttt{ActionJudge} for enforcement.
+
+\paragraph{Agent type.}
+All LLM conditions use the \texttt{llm\_free\_language} agent type, which generates natural-language prose and extracts price tags post-hoc (Section~\ref{sec:agents}).  The rule-based baseline agent is used as a comparison condition in Experiment~1 only.
+
+\paragraph{Feasibility gate.}
+The deterministic settlement gate (Section~\ref{sec:gate}) is \emph{disabled} in all experiments, so that acceptances are LLM-driven rather than gate-overridden.  Preliminary development runs with the gate enabled showed that it drove a substantial fraction of acceptances (estimated at roughly 40\% in early pilot trials) and suppressed behavioural signals such as deadline effects and extended concession trajectories, motivating the gate-off design adopted throughout.
+
+\paragraph{Prompt design}
+\label{sec:prompt-design}
+
+All experiments reported in this thesis use the \emph{free-language} prompt pipeline, in which agents respond in natural language rather than structured JSON. Each prompt is assembled from a fixed sequence of components, described below in the order they appear. The buyer and seller prompts are symmetric; we describe the buyer version and note differences where they arise.
+
+\begin{enumerate}
+
+\item \textbf{Role assignment.}
+The prompt opens by assigning the agent a role and persona: 
+\textit{``You are Buyer, a buyer looking for a good deal on \texttt{<item>}. You are polite, strategic, and want to get the best price within your budget.''}
+The seller variant instead instructs the agent to \textit{``maximize profit \ldots\ while being reasonable.''}
+
+\item \textbf{Product information.}
+The item name and, when available, the market reference price are stated (e.g.\ 
+\textit{``Product: Widget (market reference price: \$100.00)''}).
+The reference price serves as a shared anchor visible to both parties.
+
+\item \textbf{Round state.}
+A single line states the current round number, the total round limit, and the number of remaining rounds (e.g.\ 
+\textit{``Round 3 of 10 (7 remaining)''}).
+
+\item \textbf{Conversation history.}
+All prior turns are rendered as a natural-language transcript, with each entry formatted as 
+\textit{``[Round $n$] BUYER/SELLER: \texttt{<message>}''}.
+This gives the model full visibility of the negotiation dialogue so far.
+
+\item \textbf{Decision hint.}
+A dynamic block computes the utility of the opponent's standing offer and presents the result explicitly. 
+When the offer is individually rational, the hint reads:
+
+\textit{``The seller's last price is \$X. Your maximum is \$Y. This price is WITHIN your limit and you would gain \$Z surplus. Consider accepting with \texttt{MAKE\_\allowbreak DEAL} if it is close to the price you would counter with.''}
+
+When the offer exceeds the agent's limit, the hint instead states:
+
+\textit{``This price EXCEEDS your limit---you must counter below \$Y.''}
+
+\item \textbf{Monotonic concession guidance.}
+The prompt guides agents toward monotonic concession: buyers are encouraged to raise each successive offer, and sellers to lower theirs.
+This design reflects the standard assumption in alternating-offer bargaining, where rational agents do not retract concessions already made~\cite{rubinstein1982}.
+The prompt conveys this through directional suggestions such as
+\textit{``Each counter-offer you make should be HIGHER than your previous offer (concede upward toward agreement),''}
+and advises against crossing the opponent's last price.
+Agents are also encouraged to accept rather than make marginal counteroffers when the opponent's price is already close to what they would propose.
+
+In practice, LLM agents follow this guidance consistently, so the \emph{direction} of the concession trajectory is largely a product of prompt design rather than emergent behaviour.
+The concession \emph{magnitude} and \emph{timing}---such as Boulware-style early conservatism or deadline-driven acceleration---remain attributable to the model, since the guidance constrains direction but not step size or pace.
+
+
+\item \textbf{Private constraints.}
+The agent's reservation price is stated as confidential:
+
+\textit{``Your maximum acceptable price is \$Y (confidential, do not reveal).''}
+
+For sellers, the prompt additionally provides a computed initial asking price derived from the reference price and target margin, giving the model a concrete starting point.
+
+\item \textbf{Deadline salience (configurable).}
+When enabled, escalating urgency cues are injected as the round limit approaches: 
+a mild reminder when one-third of rounds remain (\textit{``Consider conceding to reach a deal''}), 
+a warning at two rounds remaining (\textit{``Only $N$ rounds left. No deal = zero surplus''}), 
+and a final-round ultimatum (\textit{``FINAL ROUND. Accept any offer within your limits or get NOTHING.''}). 
+This component is the manipulated variable in Experiment~2.
+
+\item \textbf{Price-tag format.}
+The prompt requires exactly one price offer per turn using an extractable tag:
+\texttt{\#\#\# BUYER\_PRICE(\$X) \#\#\#}
+(or \texttt{SELLER\_PRICE} for sellers).
+Two worked examples demonstrate correct usage.
+A downstream regex parser extracts the price from this tag, decoupling price extraction from free-text generation.
+
+\item \textbf{Deal acceptance protocol.}
+A separate block defines the semantics of \texttt{MAKE\_DEAL}: it means accepting the opponent's last price exactly as offered, without including a new price tag.
+The prompt explicitly distinguishes acceptance from counter-offering with worked examples for each case, reducing ambiguity for the model.
+
+\item \textbf{Communication strategy (configurable).}
+An optional preamble---\emph{assertive}, \emph{collaborative}, or \emph{strategic}---instructs the model on tone and messaging tactics. 
+For example, the strategic condition tells the agent to 
+\textit{``exaggerate how close you are to your limit''} and 
+\textit{``use the message to influence the opponent's expectations.''}
+\end{enumerate}
+
+The prompt closes with a generation cue (\textit{``Now, respond as Buyer:''}) that triggers the model's reply. 
+The full prompt is assembled fresh on every turn with updated round state, history, and decision hint, so the model always receives current information without relying on its own memory across turns.
+
+\paragraph{Reproducibility.}
+All stochastic processes are controlled by a \texttt{SeededRNG} with per-tick forking (Section~\ref{sec:reproducibility}).  Each experiment records the active configuration, seed list, and git commit hash in a structured JSON summary.  Every agent action, session outcome, and constraint violation is logged to a JSONL event stream.
+
+\paragraph{Replication.}
+All experiments are replicated across three random seeds (42, 123, 456).  Table~\ref{tab:experiment-summary} summarises all experiments.
+
+\begin{table}[ht]
+\centering
+\caption{Summary of all experiments, organised by level of analysis.}
+\label{tab:experiment-summary}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+
+\begin{tabular}{L{1.8cm} C{0.8cm} L{2.6cm} L{2.8cm} L{2.6cm} C{1.2cm} C{0.8cm}}
+\toprule
+Level & Exp & Name & Independent variable & Agent type & Sessions & Seeds \\
+\midrule
+
+Micro
+& 1
+& Concession
+& agent type (2 levels)
+& Rule-based / LLM
+& 144
+& 3 \\
+
+& 2
+& Deadline
+& max rounds (3 levels)
+& LLM
+& 216
+& 3 \\
+
+\addlinespace
+Macro
+& 3
+& Market
+& time (10 ticks)
+& LLM
+& 300
+& 3 \\
+
+& 4
+& Shock (stochastic)
+& shock on/off
+& LLM
+& 600
+& 3 \\
+
+& 4ext
+& Anchor environment
+& anchor mode (3 levels) $\times$ shock
+& LLM
+& 1,200
+& 3 \\
+
+& 6
+& Supply--demand shift
+& supply/demand shift (3 levels)
+& LLM
+& 576
+& 3 \\
+
+\addlinespace
+Institutional
+& 5
+& Mechanism
+& matching algorithm (2 levels)
+& LLM
+& 384
+& 3 \\
+
+\midrule
+\multicolumn{5}{l}{Total} & 3,420 & \\
+\bottomrule
+\end{tabular}
+
+\vspace{2pt}
+\end{table}
+
+
+
+
+% ═══════════════════════════════════════════════════════════════════
+%  Micro-Level: Agent Bargaining Behaviour
+% ═══════════════════════════════════════════════════════════════════
+
+\subsection{Micro-Level Experiments: Agent Bargaining Behaviour}
+\label{sec:exp-micro}
+
+Experiments~1 and~2 use fixed-scenario parameters to isolate individual agent behaviour from market-level variation.  Each experiment tests whether LLM agents exhibit behaviour directionally consistent with a specific prediction from classical bargaining theory: systematic concession dynamics~\cite{rubinstein1982} and deadline-driven concession acceleration~\cite{roth1988deadline}.
+
+% ───────────────────────────────────────────────────────────────────
+\subsubsection{Experiment 1: Concession Dynamics}
+\label{sec:exp-concession}
+
+\paragraph{Theoretical motivation.}
+Classical bargaining theory identifies two archetypal concession strategies: the Boulware strategy, in which an negotiator opens aggressively and concedes minimally until the final rounds (producing a concave offer trajectory), and the Conceder strategy, in which an negotiator makes large early concessions and approaches the settlement zone quickly (producing a convex trajectory)~\cite{raiffa1982}.  In Rubinstein's sequential bargaining model~\cite{rubinstein1982}, more patient agents---those who discount the future at a lower rate---extract a larger share of the surplus, because their willingness to wait signals that delay is less costly to them than to the opponent.  LLM agents, however, possess neither explicit utility functions nor discount rates; they receive cost and value information through their prompts and generate offers through next-token prediction.  The central question is therefore whether LLM agents produce recognisable concession patterns, or whether their offer trajectories are essentially arbitrary within the feasible range.  The rule-based agent in this experiment serves as a \emph{behavioural baseline}: it follows a known, deterministic linear concession schedule, so any systematic departure in the LLM agent's trajectory can be attributed to the LLM's decision-making process, subject to the prompt instruction described in Section~\ref{sec:common-setup}.
+
+\paragraph{Research questions.}
+\begin{itemize}
+    \item[\textbf{RQ-11.}] Do LLM agents exhibit systematic concession patterns across negotiation rounds?
+    \item[\textbf{RQ-12.}] How do concession trajectories differ between rule-based and \texttt{llm\_free\_language} agents?
+    \item[\textbf{RQ-13.}] Does the \texttt{llm\_free\_language} agent produce a distinctive concession trajectory compared to the deterministic rule-based agent?
+\end{itemize}
+
+\paragraph{Independent variable.}
+Agent type, varied across two conditions: \texttt{rule\_based} and \texttt{llm\_free\_language}.  Both buyer and seller use the same agent type within each condition.
+
+\paragraph{Controlled variables.}
+All sessions use fixed-mode parameters to isolate the effect of agent type from scenario variation.  The fixed scenario is: buyer value~=~\$120, seller cost~=~\$80, buyer budget~=~\$130, item reference price~=~\$100, seller target margin~=~15\%.  This creates a ZOPA of \$40 (\$120~$-$~\$80), wide enough for reliable settlement.  Maximum rounds~=~10.  Feasibility gate is disabled.
+
+\paragraph{Design.}
+2 agent-type conditions $\times$ 3 seeds $\times$ 24 sessions per seed = 144 sessions total.
+
+\paragraph{Metrics.}
+\begin{itemize}
+    \item Deal rate (\%) per condition.
+    \item Mean agreed price (\$ $\pm$ standard deviation across seeds).
+    \item Mean rounds to settlement.
+    \item Per-round offer price trajectory (concession curve), plotted per agent type and role.
+    \item Buyer and seller surplus.
+\end{itemize}
+
+\paragraph{Hypotheses.}
+\begin{itemize}
+    \item[\textbf{H-1a.}] Both agent types achieve $>$90\% deal rate given the wide ZOPA.
+    \item[\textbf{H-1b.}] LLM agents settle in fewer rounds than the rule-based agent, whose linear concession formula spreads concessions across the full horizon.
+    \item[\textbf{H-1c.}] The \texttt{llm\_free\_language} agent produces a concave (Boulware-style) concession trajectory, in contrast to the linear trajectory of the rule-based agent.
+\end{itemize}
+
+
+
+
+
+% ───────────────────────────────────────────────────────────────────
+\subsubsection{Experiment 2: Deadline Pressure}
+\label{sec:exp-deadline}
+
+\paragraph{Theoretical motivation.}
+Roth et al.~\cite{roth1988deadline} documented that human bargainers make  large concessions near deadlines, with many agreements clustering in the final moments of the available horizon.  As the deadline approaches, the probability of reaching no agreement increases, then human negotiators have higher tendency to close deal. LLM agents lack this kind of subjective risk aversion since they do not experience disutility from delay. However, they do receive explicit deadline information through the prompt's deadline-salience language, which warns them when few rounds remain.  This experiment therefore tests a narrower question: whether the \emph{structural availability} of deadline information is sufficient to produce deadline-consistent behaviour, even in the absence of the psychological mechanisms that drive the effect in human subjects.  
+
+\paragraph{Research questions.}
+\begin{itemize}
+    \item[\textbf{RQ-21.}] Does varying the negotiation horizon (maximum rounds) affect when deals settle?
+    \item[\textbf{RQ-22.}] Do LLM agents exhibit deadline effects---accelerated concession near the final rounds---consistent with the findings of Roth et al.~\cite{roth1988deadline}?
+\end{itemize}
+
+\paragraph{Independent variable.}
+Maximum rounds per session, varied across three levels: 6, 12, and 20.
+
+\paragraph{Controlled variables.}
+Agent type is \texttt{llm\_free\_language} in all conditions.  Fixed scenario parameters match Experiment~1 (buyer value~=~\$120, seller cost~=~\$80, ZOPA~=~\$40).  Feasibility gate is disabled.  The prompt includes configurable deadline-salience language that warns the agent when few rounds remain.
+
+\paragraph{Design.}
+3 horizon conditions $\times$ 3 seeds $\times$ 24 sessions per seed = 216 sessions total.
+
+\paragraph{Metrics.}
+\begin{itemize}
+    \item Deal rate per horizon condition.
+    \item Mean settlement round per condition (mean $\pm$ standard deviation).
+    \item Settlement round as a fraction of maximum rounds (normalised timing).
+    \item Proportion of agreements occurring in the last two rounds of the available horizon.
+\end{itemize}
+
+\paragraph{Hypotheses.}
+\begin{itemize}
+    \item[\textbf{H-2a.}] If agents are sensitive to deadlines, longer negotiation horizons should lead to later settlements. Agreements should also become more concentrated near the deadline itself.
+\end{itemize}
+
+% ═══════════════════════════════════════════════════════════════════
+%  Macro-Level: Market Outcomes
+% ═══════════════════════════════════════════════════════════════════
+
+\subsection{Macro-Level Experiments: Market Outcomes}
+\label{sec:exp-macro}
+
+Experiments~3, 4, 6, and the Experiment~4 anchor-environment extension shift the unit of analysis from individual sessions to multi-tick markets populated by LLM agents.  These experiments test whether aggregate market outcomes are consistent with predictions from bilateral bargaining theory~\cite{rubinstein1985} and supply-demand theory.  All use distribution-mode parameters, random matching, and \texttt{llm\_free\_language} agents.
+
+% ───────────────────────────────────────────────────────────────────
+\subsubsection{Experiment 3: Market Price Discovery}
+\label{sec:exp-market}
+
+\paragraph{Theoretical motivation.}
+Rubinstein and Wolinsky~\cite{rubinstein1985} show that price convergence in decentralised bilateral markets requires specific structural conditions: sufficiently patient agents and sufficient market thickness. When these conditions are absent, persistent price dispersion across independently negotiated pairs is expected in theory.  The present simulator operates as a collection of independent bilateral sessions with private constraints. Within each tick, agents do not observe other pairs' offers or outcomes and there is no centralised price signal.  This design means that the Law of One Price should \emph{not} hold, and any price convergence across ticks would reflect emergent regularities in how LLM agents use their private information rather than any equilibrating market mechanism.  Experiment~3 tests whether LLM-populated markets exhibit these structural properties: stable mean prices along with persistent within-tick dispersion, and whether any convergence pressure emerges over the ten-tick observation window.
+
+\paragraph{Research questions.}
+\begin{itemize}
+    \item[\textbf{RQ-31.}] Does a multi-tick market populated by LLM bilateral negotiators converge toward a stable price level?
+    \item[\textbf{RQ-32.}] Does price dispersion persist within ticks, consistent with the bilateral bargaining prediction that the Law of One Price fails when pairs negotiate independently~\cite{rubinstein1985}?
+\end{itemize}
+
+\paragraph{Independent variable.}
+Time, observed longitudinally over 10 market ticks.  There is no between-condition manipulation; this is a single-condition observational study replicated across three seeds.
+
+\paragraph{Controlled variables.}
+The simulator runs in market mode with 10 buyer--seller pairs per tick, using random matching.  Agent type is \texttt{llm\_free\_language}.  Scenario mode is \emph{distribution}: buyer values are drawn uniformly from [\$80, \$150], seller costs from [\$50, \$120], buyer budgets from [\$100, \$200], and seller margins from [5\%, 25\%].  Maximum rounds~=~10.  Feasibility gate is disabled.
+
+\paragraph{Design.}
+3 seeds (42, 123, 456) $\times$ 10 ticks $\times$ 10 sessions per tick = 300 sessions total.
+
+\paragraph{Metrics.}
+\begin{itemize}
+    \item Mean transaction price per tick, with within-tick standard deviation.
+    \item Liquidity per tick: fraction of matched pairs that reach a deal.
+    \item Price trend: slope of a simple linear regression of mean price over ticks.
+    \item Mean buyer surplus and mean seller surplus per tick.
+    \item Early-vs-late comparison: mean price and liquidity in ticks 0--2 versus ticks 7--9.
+\end{itemize}
+
+\paragraph{Hypotheses.}
+\begin{itemize}
+    \item[\textbf{H-3a.}] Mean price stabilises within the observed horizon, with a near-zero price trend slope across ticks.
+    \item[\textbf{H-3b.}] Within-tick price dispersion remains substantial (standard deviation $>$~\$10), consistent with bilateral bargaining theory.
+    \item[\textbf{H-3c.}] Buyer surplus exceeds seller surplus on average, reflecting the buyer's first-mover advantage in the alternating-offer protocol.
+\end{itemize}
+
+% ───────────────────────────────────────────────────────────────────
+\subsubsection{Experiment 4: Stochastic Shock Response}
+\label{sec:exp-shock}
+
+\paragraph{Theoretical motivation.}
+In competitive market models, prices adjust endogenously to clear supply-demand imbalances: demand increases push prices upward, supply increases push them downward, and the adjustment occurs through the incentives of self-interested participants.  In the present simulator, no such endogenous adjustment mechanism exists at the market level; agents negotiate bilaterally on the basis of their private constraints and are unaware of market-wide conditions.  Experiment~4 therefore tests whether LLM agents exhibit any \emph{emergent} price adjustment in response to exogenous changes in fundamentals, or whether price-level effects are entirely mechanical consequences of ZOPA widening or compression.
+
+\paragraph{Research questions.}
+\begin{itemize}
+    \item[\textbf{RQ-41.}] Do exogenous demand and supply shocks produce measurable shifts in market price and liquidity?
+    \item[\textbf{RQ-42.}] Is the direction of price adjustment consistent with economic theory (demand increase $\to$ price increase; supply increase $\to$ price decrease)?
+\end{itemize}
+
+\paragraph{Independent variable.}
+Shock condition, varied across two levels: \texttt{no\_shock} (baseline) and \texttt{with\_shock}.  In the shock condition, each tick has a 30\% probability of a shock event.  When a shock fires, buyer values are scaled by a demand multiplier drawn uniformly from [0.7, 1.3] and seller costs are scaled by an independently drawn supply multiplier from the same range.  Budgets are not modified.
+
+\paragraph{Controlled variables.}
+Both conditions use the same tick structure as Experiment~3 (10 ticks, 10 pairs per tick, random matching, \texttt{llm\_free\_language} agents, gate disabled), but with different base parameter ranges (buyer values from [\$90, \$170], seller costs from [\$40, \$90]) and \texttt{coherent\_sampling} disabled to preserve the shock signal.
+
+\paragraph{Design.}
+2 conditions $\times$ 3 seeds (42, 123, 456) $\times$ 10 ticks $\times$ 10 sessions per tick = 600 sessions total (300 per condition).
+
+\paragraph{Metrics.}
+\begin{itemize}
+    \item Mean transaction price per tick, compared across conditions.
+    \item Within-tick price standard deviation per condition.
+    \item Mean liquidity per condition, with minimum and maximum tick-level values.
+    \item Price and liquidity differences ($\Delta$) between shock and no-shock conditions.
+\end{itemize}
+
+\paragraph{Hypotheses.}
+\begin{itemize}
+    \item[\textbf{H-4a.}] The shock condition produces higher price volatility (larger tick-to-tick price variance) than the baseline.
+    \item[\textbf{H-4b.}] Mean price and mean liquidity are lower under shocks, because negative shocks (demand multiplier $<$~1 or supply multiplier $>$~1) compress the ZOPA for affected pairs.
+    \item[\textbf{H-4c.}] Worst-case liquidity drops more severely under shocks than best-case liquidity improves, producing an asymmetric tail risk.
+\end{itemize}
+
+\paragraph{From shock response to anchor environment.}
+Experiment~4 was designed with the item reference price treated as a fixed background constant.  During analysis, this constant emerged as a candidate confound: the price anchor that agents receive in the prompt may itself shape the price level and the magnitude of shock effects, independently of the underlying value and cost distributions.  The anchor-environment extension (Section~\ref{sec:exp-anchor}) addresses this by promoting the reference price to an explicit independent variable while retaining the same market configuration.  Because the fixed-anchor condition in the extension is identical in setup to Experiment~4, the Experiment~4 dataset is reused as the fixed-anchor arm without re-running sessions.
+
+% ───────────────────────────────────────────────────────────────────
+\subsubsection{Experiment 4 Extension: Anchor Environment}
+\label{sec:exp-anchor}
+
+The item reference price included in the agent prompt may function as an environmental price signal that shapes both price levels and shock responsiveness.  This extension is designed to probe the \emph{mechanism} behind this potential price stickiness: if agents anchor to the prompt-embedded reference price rather than discovering prices from their private fundamentals alone, then varying the reference signal should produce large price-level effects even when buyer value and seller cost distributions are held identical across conditions.  Such an outcome would identify prompt-level information as a first-order determinant of market outcomes, with direct implications for how LLM-based market simulations should be designed and interpreted---in particular, whether a fixed reference price inadvertently imposes a nominal anchor on all sessions.  Crossing anchor mode with the shock condition from Experiment~4 additionally enables a \emph{moderation analysis}: if the informational environment moderates the market's responsiveness to fundamental shocks, the magnitude of the shock price effect should differ systematically across anchor conditions.  This extension tests the hypothesis by varying the anchor mode across three conditions while crossing each with the shock/no-shock manipulation from Experiment~4, using the same market parameters and seed schedule.
+
+\paragraph{Research questions.}
+\begin{itemize}
+    \item[\textbf{RQ-4ext1.}] Does the environmental reference price in the agent prompt function as a price anchor that shifts mean transaction prices independently of private fundamentals?
+    \item[\textbf{RQ-4ext2.}] Does anchor mode modulate the market's responsiveness to stochastic demand and supply shocks?
+\end{itemize}
+
+\paragraph{Independent variable.}
+Anchor mode, varied across three levels:
+\begin{itemize}
+    \item \texttt{fixed\_anchor}: reference price held constant throughout all ticks (the default in Experiment~4).
+    \item \texttt{updated\_anchor}: reference price dynamically updated after each tick to the previous tick's mean deal price.
+    \item \texttt{no\_anchor}: reference price omitted from the prompt entirely.
+\end{itemize}
+Each anchor mode is crossed with the shock condition (shock on/off), yielding six experimental cells.
+
+\paragraph{Controlled variables.}
+All conditions use the same market parameters as Experiment~4: 10 ticks, 10 pairs per tick, \texttt{llm\_free\_language} agents, gate disabled, distribution-mode parameters with \texttt{coherent\_sampling} off.
+
+\paragraph{Design.}
+3 anchor modes $\times$ 2 shock conditions $\times$ 3 seeds $\times$ 10 ticks $\times$ 10 pairs per tick = 1{,}800 sessions in total across the three modes, of which the \texttt{fixed\_anchor} condition reuses the Experiment~4 dataset (600 sessions), as established above, and the \texttt{updated\_anchor} and \texttt{no\_anchor} conditions contribute 1{,}200 new sessions.
+
+\paragraph{Hypotheses.}
+\begin{itemize}
+    \item[\textbf{H-4ext-a.}] Different anchor modes will produce substantially different mean transaction prices despite identical buyer value and seller cost distributions, indicating that the reference signal shapes price levels above and beyond private constraints.
+    \item[\textbf{H-4ext-b.}] The \texttt{no\_anchor} condition will exhibit lower shock sensitivity than anchored conditions, since agents without a reference signal will have less informational material to propagate shock-induced price changes.
+\end{itemize}
+
+\paragraph{Metrics.}
+\begin{itemize}
+    \item Mean transaction price per anchor mode and shock condition.
+    \item Within-condition price standard deviation.
+    \item Market liquidity per condition.
+    \item Shock price effect: difference in mean deal price between with-shock and no-shock conditions within each anchor mode.
+\end{itemize}
+
+% ───────────────────────────────────────────────────────────────────
+\subsubsection{Experiment 6: Structural Supply-Demand Shifts}
+\label{sec:exp-supply-demand}
+
+Experiment~4 applies stochastic multiplicative shocks of unknown direction.  Experiment~6 complements this with deterministic, directional shifts to buyer values or seller costs, enabling cleaner tests of whether LLM-agent markets respond to supply and demand conditions in theoretically predicted directions.
+
+\paragraph{Theoretical motivation.}
+Standard supply-demand theory predicts an asymmetry between demand shocks and supply shocks in their effect on transaction prices.  A seller cost increase (supply shock) constitutes a hard constraint: no deal can occur below cost, so higher costs must translate into higher prices or into deal failure.  Price pass-through is therefore structurally compelled.  A buyer value increase (demand shock), by contrast, creates room for deals at higher prices but does not compel prices upward---buyers retain the option to accept at their previous price levels if sellers do not demand more.  This asymmetry implies that supply shocks should produce \emph{stronger} price pass-through than demand shocks of equal magnitude.  Experiment~6 tests whether LLM agents reproduce this theoretical asymmetry, or whether they exhibit a different pattern---for instance, because buyers respond to their increased private value by bidding more aggressively, generating demand-side price pressure that partially offsets the asymmetry.
+
+\paragraph{Research questions.}
+\begin{itemize}
+    \item[\textbf{RQ-61.}] Do transaction prices shift in the direction predicted by supply-demand theory when buyer values increase (demand shift) or seller costs increase (supply shift)?
+    \item[\textbf{RQ-62.}] Does the magnitude of price and liquidity response differ between demand-side and supply-side shifts?
+    \item[\textbf{RQ-63.}] Can observed liquidity changes be decomposed into mechanical effects (fewer feasible pairs) and behavioural effects (lower deal success among feasible pairs)?
+\end{itemize}
+
+\paragraph{Independent variable.}
+Supply-demand condition, varied across three levels:
+
+\begin{itemize}
+    \item \texttt{baseline}: buyer values drawn from [\$90, \$170], seller costs from [\$40, \$90].
+    \item \texttt{demand\_shock}: buyer values shifted upward by \$20, drawn from [\$110, \$190]; seller costs unchanged.
+    \item \texttt{supply\_shock}: seller costs shifted upward by \$20, drawn from [\$60, \$110]; buyer values unchanged.
+\end{itemize}
+
+\paragraph{Controlled variables.}
+The simulator runs in market mode with 8 buyer--seller pairs per tick over 8 ticks.  Agent type is \texttt{llm\_free\_language}.  Random matching.  Maximum rounds~=~10.  Feasibility gate is disabled.
+
+\paragraph{Design.}
+3 conditions $\times$ 3 seeds (42, 123, 456) $\times$ 8 ticks $\times$ 8 pairs per tick = 576 sessions total (192 per condition).
+
+\paragraph{Metrics.}
+\begin{itemize}
+    \item Mean transaction price per condition.
+    \item Liquidity (deal rate) per condition.
+    \item Total welfare, mean buyer surplus, and mean seller surplus per condition.
+    \item Within-condition price dispersion (standard deviation).
+    \item Feasibility decomposition: fraction of pairs with positive ZOPA (mechanical), deal success rate among feasible pairs (behavioural), and overall liquidity.
+\end{itemize}
+
+\paragraph{Hypotheses.}
+\begin{itemize}
+    \item[\textbf{H-6a.}] A demand shift (higher buyer values) increases mean transaction price and liquidity: more pairs have positive ZOPA, and buyers with higher values accept higher prices.
+    \item[\textbf{H-6b.}] A supply shift (higher seller costs) increases mean transaction price but decreases liquidity: sellers demand higher prices to cover costs, and fewer pairs have sufficient ZOPA for agreement.
+    \item[\textbf{H-6c.}] Liquidity effects are partly mechanical (ZOPA compression) and partly behavioural (LLM agents are less effective at reaching agreement when the ZOPA is narrow).
+\end{itemize}
+
+% ═══════════════════════════════════════════════════════════════════
+%  Institutional: Mechanism Design
+% ═══════════════════════════════════════════════════════════════════
+
+\subsection{Institutional Experiment: Mechanism Design}
+\label{sec:exp-institutional}
+
+Experiment~5 tests whether an institutional design choice---the buyer--seller matching algorithm---affects market-level outcomes independently of agent behaviour.  This complements the micro-level and macro-level experiments by examining whether market structure can be improved through mechanism design even when agent sophistication is held constant.
+
+In the mechanism design literature, the matching rule is understood as an \emph{institutional rule} that determines which agents interact, independently of how those agents behave once matched.  It is well established in market design that the choice of matching mechanism can substantially affect allocative efficiency, even when all participants are equally strategic.  Experiment~5 tests whether this classical insight---that institutional rules shape aggregate outcomes beyond participant behaviour---extends to a setting where participants are LLM agents rather than human or game-theoretically rational actors.  If the surplus-maximising matcher produces higher deal rates and efficiency than random matching \emph{without} any change to agent behaviour, this provides direct evidence that institutional design is a lever for improving LLM-populated market performance that operates independently of prompt engineering or model capability.
+
+% ───────────────────────────────────────────────────────────────────
+\subsubsection{Experiment 5: Matching Mechanism Comparison}
+\label{sec:exp-mechanism}
+
+\paragraph{Research question.}
+Does the matching algorithm affect market-level deal rates, allocative efficiency, welfare, and price dispersion?
+
+\paragraph{Independent variable.}
+Matching algorithm, varied across two conditions: \texttt{random} (baseline, all agents paired regardless of ZOPA) and \texttt{surplus\_max} (oracle, greedy maximum-ZOPA pairing that only matches pairs with positive ZOPA overlap).  Additional matchers (sorted heuristic, round-robin) are implemented but not evaluated in this study.
+
+\paragraph{Controlled variables.}
+The simulator runs in market mode with 8 buyer--seller pairs per tick over 8 ticks.  Agent type is \texttt{llm\_free\_language}.  Scenario mode is \emph{distribution}, using the same parameter ranges as Experiment~3 (buyer values from [\$80, \$150], seller costs from [\$50, \$120]).  Maximum rounds~=~10.  Feasibility gate is disabled.
+
+\paragraph{Design.}
+2 matching conditions $\times$ 3 seeds (42, 123, 456) $\times$ 8 ticks $\times$ 8 pairs per tick = 384 nominal sessions (335 after surplus-max filtering excludes negative-ZOPA pairs).
+
+\paragraph{Metrics.}
+\begin{itemize}
+    \item Deal rate per condition.
+    \item Mean transaction price and price standard deviation per condition.
+    \item Allocative efficiency: realised welfare as a fraction of theoretically maximum welfare.
+    \item Surplus Gini coefficient: inequality of surplus distribution across deals.
+    \item Mean buyer surplus and mean seller surplus per condition.
+\end{itemize}
+
+\paragraph{Hypotheses.}
+\begin{itemize}
+    \item[\textbf{H-5a.}] Surplus-maximising matching produces a higher deal rate than random matching, because it eliminates structurally infeasible pairs.
+    \item[\textbf{H-5b.}] Surplus-maximising matching produces higher allocative efficiency, because it concentrates trades in high-surplus pairs.
+\end{itemize}
+
+% ═══════════════════════════════════════════════════════════════════
+%  Deferred Experiments
+% ═══════════════════════════════════════════════════════════════════
+
+\subsection{Deferred Experiments}
+\label{sec:deferred}
+
+Three additional experiment families are designed and partially implemented but deferred to future work.  An anchoring-effect experiment was intended to vary buyer valuations to test first-offer anchoring~\cite{galinsky2001}, but was deferred due to a ZOPA confound that requires redesign: changing buyer values simultaneously shifts the anchor and the feasible range, making effects inseparable.  A reputation and repeated-interaction experiment uses the round-robin matcher and reputation agent to test whether access to opponent interaction history improves deal rates over repeated encounters.  A communication-strategy experiment uses prompt-level communication modifiers---neutral, assertive, collaborative, and strategic---to test whether message framing affects concession speed and settlement price.  Both require the feasibility gate to be disabled so that strategic adaptation can manifest; their evaluation is deferred to future work (Section~\ref{sec:conclusion}).
+
+% ═══════════════════════════════════════════════════════════════════
+%  Controls and Confounds
+% ═══════════════════════════════════════════════════════════════════
+
+\subsection{Protocol Parameters and Design Choices}
+\label{sec:confounds}
+
+Several protocol-level design choices are held constant across the experimental programme.  We enumerate them here so that their effects can be tracked when interpreting results in Section~\ref{sec:results}.
+
+\paragraph{Prompt architecture.}
+Two prompt-level choices are active in all LLM conditions: the counteroffer protocol (agents counter-offer or accept; episodes that reach the round limit end as no-deal) and the accept-condition block (which pre-computes utility and may reduce anchoring effects).  Neither has been individually ablated; their separate effects are unknown.
+
+\paragraph{Single model family.}
+All experiments use \texttt{Qwen/Qwen2.5-14B-Instruct} at temperature~0.2.  Results may not generalise to other model families, scales, or temperatures; no cross-model comparison has been conducted.
+
+\paragraph{Seed limitations.}
+All experiments use three seeds (42, 123, 456), supporting directional replication but not formal statistical testing.  No experiment includes sufficient replications for confidence-interval estimation or hypothesis testing; all findings are reported as descriptive characterisations.
+
+% ═══════════════════════════════════════════════════════════════════
+%  Evaluation Protocol
+% ═══════════════════════════════════════════════════════════════════
+
+\subsection{Evaluation Protocol}
+\label{sec:eval-protocol}
+
+For each experiment, we report the following:
+
+\begin{enumerate}
+    \item \textbf{Primary outcome metrics} as specified in the experiment design (deal rate, settlement price, surplus, timing, or market-level aggregates).
+    \item \textbf{Deal success rate} as a standard metric across all experiments, enabling systematic comparison of agreement rates across conditions and experimental settings.
+    \item \textbf{Hypothesis evaluation}: whether each stated hypothesis is supported, rejected, or indeterminate, using descriptive comparison (means, standard deviations, Pearson correlation) rather than formal statistical tests.
+    \item \textbf{Confound acknowledgement}: for each finding, whether the result is attributable to agent behaviour, protocol structure, or some combination that the current design cannot separate.
+\end{enumerate}
+
+All analyses are descriptive.  No hypothesis tests, confidence intervals, or effect sizes are computed.  Findings are characterised as ``consistent with,'' ``directionally aligned with,'' or ``inconsistent with'' theoretical predictions, rather than as confirmations or rejections in the statistical sense.

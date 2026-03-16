@@ -1,0 +1,195 @@
+% ═══════════════════════════════════════════════════════════════════
+%  Problem Formulation
+% ═══════════════════════════════════════════════════════════════════
+
+\label{sec:formulation}
+
+We formalise the bilateral bargaining setting instantiated by the simulator and define the outcome quantities measured across all experiments.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Buyer--Seller Negotiation Setting}
+\label{sec:setting}
+
+The simulator implements a two-player alternating-offer protocol over a single commodity with a bounded round horizon, using an alternating-offer turn structure as in Rubinstein's bargaining model~\cite{rubinstein1982}, but with a finite horizon and hard private constraints.
+
+In each negotiation session, one buyer and one seller exchange priced offers over at most $R$ rounds (configurable; default $R{=}10$).  The buyer moves first at round~0; agents alternate on subsequent rounds.  On each turn, the active agent selects an action from $\{\textsc{offer}, \textsc{counter}, \textsc{accept}, \textsc{reject}\}$ with an associated price (for \textsc{offer} and \textsc{counter}) or null (for \textsc{accept} and \textsc{reject}).
+
+A session terminates under one of three conditions:
+\begin{itemize}
+    \item \textbf{Accepted:} an agent outputs \textsc{accept}, and the deal settles at the opponent's last offered price.
+    \item \textbf{Rejected:} an agent outputs \textsc{reject}, ending the negotiation with no deal.
+    \item \textbf{Timeout:} the round limit $R$ is reached without agreement.
+\end{itemize}
+
+The buyer-first turn order gives the buyer a structural first-mover advantage.  Its effect on surplus distribution at the micro level is documented in Section~\ref{sec:results}; the effect does not persist at the aggregate market level (Finding~8).
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Private Constraints}
+\label{sec:constraints}
+
+Each agent holds private constraints that are never shared with the opponent and are enforced deterministically by the simulator.
+
+\paragraph{Buyer.}  A buyer is characterised by a value $v_b$ (maximum willingness-to-pay for the item) and a budget $B_b$ (hard spending cap).  The effective price ceiling is
+\[
+    \bar{p}_b = \min(v_b, B_b).
+\]
+An offer at price $p$ is feasible for the buyer if and only if $p \leq \bar{p}_b$.  When $B_b \geq v_b$ (the common configuration in our experiments), the budget is slack and only the value binds.
+
+The simulator tracks $v_b$ and $B_b$ separately: $v_b$ enters the surplus calculation ($v_b - p$), while $B_b$ enters the hard constraint check.  However, the LLM agent's prompt receives only the collapsed ceiling $\bar{p}_b$ as a single ``maximum price'' figure; the agent cannot reason about the value--budget distinction.  Rule-based agents likewise operate on $\bar{p}_b$ directly.  The separation therefore serves the simulator's enforcement and metrics layers rather than the agent's decision-making.
+
+\paragraph{Seller.}  A seller is characterised by a cost $c_s$ (reservation price, representing the minimum acceptable sale price) and a target margin $m_s$ (aspirational markup over cost).  An offer at price $p$ is feasible for the seller if and only if $p \geq c_s$.  The target margin is used only by the rule-based agent to compute its opening price ($c_s \times (1 + 2m_s)$); it is not enforced as a hard constraint and does not appear in the LLM agent's prompt.  LLM sellers receive only $c_s$ as their ``minimum price.''
+
+\paragraph{Zone of possible agreement.}
+The ZOPA~\cite{raiffa1982} for a buyer--seller pair is defined as
+\[
+    \text{ZOPA} = v_b - c_s.
+\]
+A deal is structurally possible only when $\text{ZOPA} > 0$.  Budget constraints may further tighten the effective ZOPA to $\bar{p}_b - c_s = \min(v_b, B_b) - c_s$.  When the ZOPA is zero or negative, no agreement can satisfy both agents' hard constraints regardless of strategy.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Outcome Definitions}
+\label{sec:outcomes}
+
+\paragraph{Session-level outcomes.}
+When a session terminates with acceptance at price $p$, the following quantities are computed:
+\begin{align}
+    \text{buyer surplus} &= v_b - p, \\
+    \text{seller surplus} &= p - c_s, \\
+    \text{total welfare} &= v_b - c_s.
+\end{align}
+Total welfare depends only on the buyer's value and the seller's cost, not on the agreed price; the price determines only the distribution of surplus between the two parties.  When no deal is reached, all surplus quantities are zero.  Each session additionally records the termination reason (\textsc{accepted}, \textsc{rejected}, or \textsc{timeout}) and the number of rounds taken.
+
+\paragraph{Market-level outcomes.}
+At the market level, outcomes aggregate over sessions within a tick: mean transaction price, within-tick price dispersion (standard deviation), and liquidity (fraction of matched pairs that reach a deal).  Two additional metrics support mechanism-comparison experiments: \emph{allocative efficiency}, defined as the ratio of realised total welfare to the theoretical maximum welfare across all matched pairs, and the \emph{surplus Gini coefficient}, measuring inequality in surplus distribution across deals.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Research Questions}
+\label{sec:rqs}
+
+The experiments conducted on the simulator operate at three levels of analysis: micro-level agent bargaining behaviour (Experiments~1, 2), macro-level market dynamics (Experiments~3, 4, 6, and the Experiment~4 anchor-environment extension), and institutional mechanism effects (Experiment~5).  Each research question asks whether an observable pattern in the simulator is consistent with a specific prediction from classical theory.  Specific hypotheses for each experiment are stated in Section~\ref{sec:experiments}.
+
+\paragraph{Micro-level.}
+\begin{itemize}
+    \item[\textbf{RQ-1.}] Do LLM agents exhibit systematic concession patterns across negotiation rounds, and how do concession trajectories differ compared to rule-based agents~\cite{rubinstein1982}?
+    \item[\textbf{RQ-2.}] Does varying the negotiation horizon affect settlement timing, consistent with deadline-pressure effects observed in human bargaining~\cite{roth1988deadline}?
+\end{itemize}
+
+\paragraph{Macro-level.}
+\begin{itemize}
+    \item[\textbf{RQ-3.}] Does a market of LLM bilateral negotiators converge toward a stable price level, and does within-tick price dispersion persist~\cite{rubinstein1985}?
+    \item[\textbf{RQ-4.}] Do stochastic external shocks produce measurable shifts in market price and liquidity in theoretically predicted directions?
+    \item[\textbf{RQ-6.}] Do structural supply-demand shifts (deterministic increases to buyer values or seller costs) produce directionally predicted price and liquidity responses?
+\end{itemize}
+
+\paragraph{Informational environment.}
+\begin{itemize}
+    \item[\textbf{RQ-4ext.}] Does the environmental reference price signal in the agent prompt function as a price anchor that shifts mean transaction prices independently of private fundamentals, and does it modulate the market's responsiveness to stochastic shocks?
+\end{itemize}
+
+\paragraph{Institutional.}
+\begin{itemize}
+    \item[\textbf{RQ-5.}] Does the choice of buyer--seller matching algorithm affect market-level deal rates, allocative efficiency, and surplus distribution, independently of agent behaviour?
+\end{itemize}
+
+% ═══════════════════════════════════════════════════════════════════
+%  Simulator Architecture
+% ═══════════════════════════════════════════════════════════════════
+
+\section{Simulator Architecture}
+\label{sec:design}
+
+The following subsections describe the simulator that implements the setting formalised above: its overall architecture, the agent types used in the reported experiments, the validation pipeline, the market structure, metrics, and reproducibility mechanisms.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Overall System Architecture}
+\label{sec:architecture}
+
+Experiments are configured via YAML files and CLI overrides, which specify agent types, parameter distributions, matching strategies, and seed lists.  At runtime, a market simulator orchestrates execution tick by tick: each tick generates buyer and seller populations from the configured distributions, applies optional shocks, delegates pair formation to a pluggable matcher, and dispatches each matched pair to a negotiation session.  Each session implements the alternating-offer protocol, invoking agents in turn and routing their outputs through a validation pipeline before updating session state.  Results are written to a structured JSONL event log; run-level summaries are computed after all sessions complete.  This separation allows agent types, matching strategies, and prompt configurations to be varied independently without modifying the negotiation protocol.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Agent Types}
+\label{sec:agents}
+
+All agents share a common interface: given a context containing the item under negotiation, the agent's role and private constraints, the current round, the negotiation history, and the opponent's last offer, the agent returns a structured action.  As noted in Section~\ref{sec:constraints}, LLM agent prompts present only the effective price ceiling $\bar{p}_b = \min(\text{value}, \text{budget})$ for buyers and cost for sellers.  The two agent types used in all reported experiments are described below.
+
+\paragraph{LLM free-language (primary agent).}
+A natural-language agent that generates free-form dialogue rather than structured JSON.  The agent receives a prompt containing its role, private constraints, negotiation history, and deadline information; it responds with a free-text message from which the parser extracts a price tag (delimited by \texttt{\#\#\# PRICE(\$X) \#\#\#} markers) and an optional acceptance keyword (\texttt{MAKE\_DEAL}).  This design avoids the JSON-parse failures observed with smaller models and is the agent type used in all reported experiments.  If the first response fails to yield an extractable price or acceptance signal, the rethink loop (Section~\ref{sec:validation}) issues one retry with a corrective hint.
+
+\paragraph{Rule-based baseline.}
+A deterministic agent following a linear concession strategy.  Buyers open at 50\% of their price ceiling and concede linearly toward it over the available rounds; sellers open at $\text{cost} \times (1 + 2m)$, where $m$ is the target margin (default 0.15), and concede toward cost.  Each round, the agent computes a concession target as
+\[
+    t_r = p_0 + (p_{\max} - p_0) \cdot \frac{r}{R - 1}
+\]
+where $p_0$ is the opening price, $p_{\max}$ is the constraint boundary, $r$ is the current round, and $R$ is the maximum number of rounds.  The agent accepts when the opponent's standing offer meets or exceeds this target.  On the final round, agents accept any offer within their hard constraints to avoid deadlock.  This agent produces zero variance across seeds, providing a deterministic baseline for isolating LLM-specific effects.  It is used as a comparison condition in Experiment~1 only.
+
+\paragraph{Implementation note.}
+Additional prototype agent architectures were explored during development but are not evaluated in this study.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Constraint Handling and Feasibility Enforcement}
+\label{sec:enforcement}
+
+% ── Action Validation Pipeline ────────────────────────────────────
+\subsubsection{Action Validation Pipeline}
+\label{sec:validation}
+
+Every action produced by an LLM agent passes through a four-stage pipeline before updating session state.  Rule-based agents skip Stages~1 and~2, as they produce deterministic, constraint-respecting actions by construction.
+
+\paragraph{Stage 1: Output extraction.}
+The parser extracts a price tag from delimited markers (\texttt{\#\#\# PRICE(\$X) \#\#\#}) and detects an acceptance keyword (\texttt{MAKE\_DEAL}) in the agent's prose output, mapping the result to a structured \textsc{offer}, \textsc{counter}, or \textsc{accept} action.
+
+\paragraph{Stage 2: Rethink loop.}
+If extraction fails or the parsed action violates the agent's own private constraints, one rethink attempt is issued: the original prompt is extended with a corrective message naming the specific error.  A successful rethink response is returned as the agent's action; any remaining constraint violation is left for Stage~3.  If both attempts fail to parse, a \textsc{REJECT} action is returned, terminating the session.
+
+\paragraph{Stage 3: Protocol and constraint validation.}
+The \texttt{ActionJudge} applies domain-level checks.  First-round corrections handle protocol violations (e.g.\ a \textsc{counter} on round~0 is relabelled as \textsc{offer}).  Constraint validation checks hard limits: buyer offers must not exceed budget or value; seller offers must not fall below cost; all prices must lie within configurable global bounds $[p_{\min}, p_{\max}]$.
+
+\paragraph{Stage 4: Enforcement.}
+If validation fails, the judge replaces the action with \textsc{reject} and emits a structured risk event recording the violation type, attempted action, round number, and time step.  Risk events are aggregated in the run summary, enabling post-hoc analysis of constraint-violation frequency across conditions.
+
+% ── Feasibility Gate ──────────────────────────────────────────────
+\subsubsection{Feasibility Gate}
+\label{sec:gate}
+
+The simulator includes a configurable deterministic settlement mechanism (\texttt{gate\_\allowbreak enabled}), which, when enabled, overrides agent decisions by automatically accepting feasible offers.  Preliminary development runs showed that this gate drove a substantial fraction of acceptances and suppressed the behavioural dynamics the experiments were designed to study.  The gate is therefore \emph{disabled in all reported experiments}, so that every acceptance is LLM-driven.  The implications of this design choice are discussed in Section~\ref{sec:discussion}.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Market Layer}
+\label{sec:market}
+
+\paragraph{Population generation.}
+The simulator supports two scenario modes.  In \emph{distribution mode}, buyer values, budgets, seller costs, and target margins are drawn independently from uniform distributions with configurable bounds (e.g.\ buyer value $\in [\$80, \$150]$, seller cost $\in [\$50, \$120]$ in Experiments~3 and~5; ranges differ across experiments as detailed in Section~\ref{sec:experiments}).  In \emph{fixed mode}, all agents receive identical parameter values specified in the configuration, enabling controlled single-variable experiments.  In both modes, populations are regenerated each tick from a forked RNG, so agents within a tick are independent draws.
+
+\paragraph{Matching strategies.}
+\label{sec:matching}
+Pair formation is delegated to a pluggable \texttt{Matcher} interface.  The two matching strategies used in the reported experiments are:
+
+\begin{itemize}
+    \item \textbf{Random} (default).  Shuffles buyers and sellers independently and pairs them 1:1.  Unmatched agents (when population sizes differ) are dropped.  This is the baseline matching mechanism used in Experiments~1--4, 6, and the Experiment~4 extension.
+    \item \textbf{Surplus-maximising} (oracle).  Computes ZOPA $= \text{buyer value} - \text{seller cost}$ for all possible pairs, then greedily assigns pairs in descending ZOPA order (each agent used at most once).  Only pairs with positive ZOPA are matched.  This uses private information and represents a theoretical upper bound on matching efficiency, not a realistic mechanism.  Used as the treatment condition in Experiment~5.
+\end{itemize}
+
+\paragraph{Demand and supply shocks.}
+\label{sec:shocks}
+An optional shock mechanism applies multiplicative perturbations to buyer values and seller costs at the beginning of each tick, with a 30\% trigger probability (as configured in Experiment~4). When activated, buyer values are scaled by a demand multiplier drawn uniformly from a specified range (e.g.,\ $[0.7, 1.3]$), simulating shifts in item desirability. Seller costs are independently scaled by a supply multiplier from the same range, while target margins remain constant. 
+
+Buyer budgets are exempt from these shocks; the budget serves as an inelastic spending ceiling. Consequently, positive demand shocks are partially muted for budget-constrained buyers whose shocked value exceeds their available funds. This deliberate asymmetry preserves the role of the budget as a hard constraint while allowing the agent's willingness-to-pay to fluctuate with market conditions.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Metrics and Logging}
+\label{sec:metrics}
+
+\paragraph{Session-level metrics.}
+Each completed negotiation produces a structured result containing: deal status, agreed price (if any), number of rounds, termination reason, buyer and seller surplus, and a list of risk events.  Run-level aggregates include deal success rate, price statistics (mean, median, standard deviation), mean surplus by role, deadlock rate, and constraint-violation counts.
+
+\paragraph{Tick-level and efficiency metrics (market mode).}
+In market mode, per-tick aggregates---including mean transaction price, within-tick price standard deviation, and liquidity---are computed after each tick's sessions complete and logged as \texttt{tick\_end} events, enabling time-series analysis.  Two additional metrics support mechanism-comparison experiments: \emph{allocative efficiency} (ratio of realised welfare to theoretical maximum across all matched pairs) and the \emph{surplus Gini coefficient} (inequality in surplus distribution across deals).
+
+\paragraph{Event logging.}
+Every negotiation action, session outcome, constraint violation, and tick-level aggregate is written to a newline-delimited JSON log (\texttt{events.jsonl}). For LLM agents, each turn event additionally records the intended action, the effective action, an override flag, and the feasibility threshold. This granular logging supports detailed post-hoc analysis without re-execution.
+
+% ───────────────────────────────────────────────────────────────────
+\subsection{Reproducibility}
+\label{sec:reproducibility}
+
+All stochastic market-level processes draw from a \texttt{SeededRNG} wrapper that forks a child seed at each tick, ensuring full reproducibility of population generation, matching, and shock application given the same seed.  LLM inference introduces irreducible non-determinism from the model itself.  All experimental parameters are specified in YAML files, and each experiment runner records the active configuration, the git commit hash, and the seed list in a structured JSON summary.
