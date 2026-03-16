@@ -1,0 +1,21 @@
+{
+  "total_negotiations": 64,
+  "deals_made": 39,
+  "deal_success_rate": 0.6094,
+  "avg_price": 119.41,
+  "median_price": 120.0,
+  "price_std": 18.23,
+  "buyer_surplus_mean": 14.75,
+  "seller_surplus_mean": 32.09,
+  "welfare_mean": 46.84,
+  "avg_rounds_to_close": 6.13,
+  "avg_rounds_all": 6.3,
+  "budget_violation_attempts": 16,
+  "cost_violation_attempts": 2,
+  "deadlock_rate": 0.1094,
+  "timeouts": 7,
+  "total_risk_events": 18,
+  "scenario_mode": "distribution",
+  "mode": "market",
+  "num_ticks": 8
+}

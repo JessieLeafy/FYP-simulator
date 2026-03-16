@@ -1,0 +1,25 @@
+time_step,item_id,item_name,buyer_id,seller_id,deal_made,deal_price,termination_reason,rounds_taken,buyer_value,seller_cost,buyer_surplus,seller_surplus
+0,item_001,Gadget B,buyer_t0_005,seller_t0_002,True,88.75,accepted,6,120.0,80.0,31.25,8.75
+0,item_004,Gizmo E,buyer_t0_000,seller_t0_003,True,87.5,accepted,5,120.0,80.0,32.5,7.5
+0,item_000,Widget A,buyer_t0_001,seller_t0_001,True,82.0,accepted,5,120.0,80.0,38.0,2.0
+0,item_000,Widget A,buyer_t0_002,seller_t0_000,True,86.25,accepted,6,120.0,80.0,33.75,6.25
+0,item_001,Gadget B,buyer_t0_003,seller_t0_007,True,90.0,accepted,5,120.0,80.0,30.0,10.0
+0,item_004,Gizmo E,buyer_t0_007,seller_t0_006,True,85.0,accepted,4,120.0,80.0,35.0,5.0
+0,item_002,Doohickey C,buyer_t0_006,seller_t0_004,False,,timeout,6,120.0,80.0,0.0,0.0
+0,item_002,Doohickey C,buyer_t0_004,seller_t0_005,True,88.75,accepted,6,120.0,80.0,31.25,8.75
+1,item_004,Gizmo E,buyer_t1_000,seller_t1_000,False,,timeout,6,120.0,80.0,0.0,0.0
+1,item_000,Widget A,buyer_t1_004,seller_t1_004,True,87.5,accepted,5,120.0,80.0,32.5,7.5
+1,item_004,Gizmo E,buyer_t1_005,seller_t1_007,True,82.0,accepted,5,120.0,80.0,38.0,2.0
+1,item_004,Gizmo E,buyer_t1_003,seller_t1_001,True,87.5,accepted,5,120.0,80.0,32.5,7.5
+1,item_000,Widget A,buyer_t1_007,seller_t1_005,True,87.5,accepted,6,120.0,80.0,32.5,7.5
+1,item_002,Doohickey C,buyer_t1_002,seller_t1_003,True,88.0,accepted,6,120.0,80.0,32.0,8.0
+1,item_004,Gizmo E,buyer_t1_006,seller_t1_006,True,82.0,accepted,5,120.0,80.0,38.0,2.0
+1,item_001,Gadget B,buyer_t1_001,seller_t1_002,True,85.0,accepted,4,120.0,80.0,35.0,5.0
+2,item_001,Gadget B,buyer_t2_000,seller_t2_006,True,87.5,accepted,5,120.0,80.0,32.5,7.5
+2,item_000,Widget A,buyer_t2_001,seller_t2_002,True,82.0,accepted,5,120.0,80.0,38.0,2.0
+2,item_004,Gizmo E,buyer_t2_006,seller_t2_005,True,86.5,accepted,6,120.0,80.0,33.5,6.5
+2,item_001,Gadget B,buyer_t2_004,seller_t2_003,True,87.0,accepted,5,120.0,80.0,33.0,7.0
+2,item_001,Gadget B,buyer_t2_002,seller_t2_001,True,85.0,accepted,4,120.0,80.0,35.0,5.0
+2,item_004,Gizmo E,buyer_t2_005,seller_t2_004,True,86.0,accepted,6,120.0,80.0,34.0,6.0
+2,item_001,Gadget B,buyer_t2_007,seller_t2_000,True,87.5,accepted,5,120.0,80.0,32.5,7.5
+2,item_001,Gadget B,buyer_t2_003,seller_t2_007,True,85.0,accepted,4,120.0,80.0,35.0,5.0

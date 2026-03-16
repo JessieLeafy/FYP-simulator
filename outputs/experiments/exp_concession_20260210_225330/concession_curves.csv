@@ -1,7 +1,0 @@
-condition,session_id,role,round,offer_price
-llm_reactive,1,buyer,0,60
-llm_reactive,2,buyer,0,60
-llm_reactive,3,buyer,0,60
-llm_reactive,4,buyer,0,60
-llm_reactive,5,buyer,0,60
-llm_reactive,6,buyer,0,60.0

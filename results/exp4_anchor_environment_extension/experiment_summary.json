@@ -1,0 +1,44 @@
+{
+  "experiment": "shock_anchor_ablation",
+  "anchor_modes": [
+    "updated",
+    "no_anchor"
+  ],
+  "shock_conditions": [
+    "no_shock",
+    "with_shock"
+  ],
+  "seeds": [
+    42,
+    123,
+    456
+  ],
+  "total_tick_records": 120,
+  "condition_summaries": {
+    "updated_no_shock": {
+      "mean_price": 78.84,
+      "price_std": 14.16,
+      "avg_liquidity": 0.7133,
+      "tick_count": 30
+    },
+    "updated_with_shock": {
+      "mean_price": 82.99,
+      "price_std": 14.69,
+      "avg_liquidity": 0.7167,
+      "tick_count": 30
+    },
+    "no_anchor_no_shock": {
+      "mean_price": 99.21,
+      "price_std": 7.73,
+      "avg_liquidity": 0.8667,
+      "tick_count": 30
+    },
+    "no_anchor_with_shock": {
+      "mean_price": 99.01,
+      "price_std": 8.94,
+      "avg_liquidity": 0.92,
+      "tick_count": 30
+    }
+  },
+  "git_hash": "706cd06"
+}

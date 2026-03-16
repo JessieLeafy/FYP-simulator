@@ -1,119 +1,113 @@
-# Multi-Agent Negotiation & Trading Simulator
+# LLM-Powered Multi-Agent Negotiation Simulator
 
-A reproducible simulation framework where LLM-powered buyer and seller agents negotiate over prices using alternating offers. Built for FYP research on multi-agent market dynamics.
+A configurable multi-agent buyer-seller negotiation simulator where LLM-powered agents negotiate prices through alternating-offer bargaining in simulated markets. Built for an FYP study on how simulator design, protocol design, and market conditions affect negotiation outcomes and aggregate economic behavior.
 
-## Features
+## Experiments
 
-- **Four agent types**: rule-based baseline, LLM reactive, LLM deliberative (structured reasoning), and memory-augmented
-- **Ollama backend**: local LLM inference via HTTP — no API keys, runs fully offline
-- **Deterministic**: seeded RNG ensures reproducible results across runs
-- **Hard safety constraints**: budget/cost violations are blocked and logged as risk events
-- **Structured outputs**: agents produce strict JSON; robust parsing with automatic repair
-- **Rich evaluation**: deal success rate, surplus, price distribution, deadlock rate, risk metrics
-- **Parameter sweeps**: grid search over seeds, agent types, and negotiation parameters
+This repository contains six experiments plus one extension study:
+
+| # | Experiment | Description |
+|---|-----------|-------------|
+| 1 | Concession dynamics | Compares offer-price trajectories between rule-based and LLM free-language agents |
+| 2 | Deadline pressure | Varies max negotiation rounds (6, 12, 20) to measure deadline effects on agreement rates and timing |
+| 3 | Market dynamics | Observes price trends, dispersion, and liquidity over multiple market ticks |
+| 4 | Supply shock | Compares market outcomes with and without demand/supply shocks |
+| 5 | Market mechanism comparison | Compares random vs surplus-maximising buyer-seller matching |
+| 6 | Supply-demand shift | Tests whether prices and volume respond to shifts in buyer-value and seller-cost distributions |
+| 4-ext | Anchor environment extension | Ablation on Experiment 4: tests whether weak shock response is caused by fixed prompt-level reference price anchors. The fixed-anchor condition reuses the same dataset as Experiment 4. |
+
+All experiments use `llm_free_language` agents with the feasibility gate disabled, except Experiment 1 which includes a `rule_based` baseline condition.
 
 ## Requirements
 
 - Python 3.10+
-- [Ollama](https://ollama.com) (only needed for LLM agent types)
+- PyYAML
+- An LLM backend: [Ollama](https://ollama.com) (local) or HuggingFace Transformers (GPU)
 
 ## Installation
 
 ```bash
-# Install with pip (editable mode)
 pip install -e ".[dev]"
-
-# Or just install the one external dependency
-pip install pyyaml
 ```
 
-## Ollama Setup (for LLM agents only)
+## Reproducing Experiments
 
 ```bash
-# 1. Install Ollama — https://ollama.com
-# 2. Pull a model
-ollama pull qwen2.5:3b
+# Run all six main experiments (3 seeds: 42, 123, 456)
+python experiments/run_free_language_all.py
 
-# 3. Verify it works
-curl http://localhost:11434/api/generate \
-  -d '{"model":"qwen2.5:3b","prompt":"Say hello","stream":false}'
+# Run the anchor-mode ablation extension
+python experiments/run_shock_anchor_ablation.py
+
+# Single experiment only
+python experiments/run_free_language_all.py --only A
+
+# Pilot mode (1 seed, reduced scale)
+python experiments/run_free_language_all.py --pilot
 ```
 
-## Quick Start
+### LLM Backend Configuration
 
-### Rule-based baseline (no LLM needed)
+Experiments default to the HuggingFace backend with `Qwen/Qwen2.5-14B-Instruct` as specified in the YAML configs. To use Ollama instead:
 
 ```bash
-python experiments/run.py --config experiments/configs/baseline.yaml --seed 42
+python experiments/run_free_language_all.py --backend ollama --model llama3.2:3b
 ```
 
-### LLM reactive agents
+## Results
 
-```bash
-python experiments/run.py --config experiments/configs/llm_reactive.yaml --seed 42
-```
-
-### LLM deliberative agents
-
-```bash
-python experiments/run.py --config experiments/configs/llm_deliberative.yaml --seed 42
-```
-
-### Mixed: rule-based buyers vs LLM sellers
-
-```bash
-python experiments/run.py \
-  --config experiments/configs/baseline.yaml \
-  --buyer_agent_type rule_based \
-  --seller_agent_type llm_reactive \
-  --steps 5 --buyers_per_step 10 --sellers_per_step 10
-```
-
-### CLI override examples
-
-```bash
-python experiments/run.py \
-  --config experiments/configs/baseline.yaml \
-  --seed 123 \
-  --steps 50 \
-  --buyers_per_step 100 \
-  --sellers_per_step 100 \
-  --max_rounds 15
-```
-
-### Parameter sweep
-
-```bash
-python experiments/sweep.py \
-  --config experiments/configs/baseline.yaml \
-  --seeds 42 123 456 \
-  --agent_types rule_based \
-  --max_rounds_list 5 10 15
-```
-
-## Output Structure
-
-Each run produces a timestamped directory under `outputs/runs/`:
+Pre-computed results from the final experiment runs (2026-03-13 and 2026-03-14) are in `results/`:
 
 ```
-outputs/runs/20260208_143000_s42/
-  events.jsonl    # every turn + result as newline-delimited JSON
-  summary.json    # aggregate metrics
-  deals.csv       # one row per negotiation
+results/
+  exp1_concession/              # Experiment 1: concession curves
+  exp2_deadline/                # Experiment 2: deadline pressure
+  exp3_market_dynamics/         # Experiment 3: market dynamics
+  exp4_supply_shock/            # Experiment 4: supply shock
+  exp4_anchor_environment_extension/  # Experiment 4 extension: anchor ablation
+  exp5_mechanism/               # Experiment 5: mechanism comparison
+  exp6_supply_demand/           # Experiment 6: supply-demand shift
 ```
 
-### Key metrics in `summary.json`
+Each experiment directory contains:
+- `experiment_summary.json` — aggregate metrics and condition statistics
+- One or more CSV files with per-session or per-tick data
+- `parse_diagnostics.json` — LLM parsing reliability metrics
+- `runs/` — raw per-simulation JSONL event logs
 
-| Metric | Description |
-|--------|-------------|
-| `deal_success_rate` | Fraction of negotiations that reached a deal |
-| `avg_price` / `median_price` | Deal price statistics |
-| `buyer_surplus_mean` | Average (value − price) for deals |
-| `seller_surplus_mean` | Average (price − cost) for deals |
-| `avg_rounds_to_close` | Mean rounds for successful deals |
-| `deadlock_rate` | Fraction of negotiations that timed out |
-| `budget_violation_attempts` | Blocked buyer constraint violations |
-| `cost_violation_attempts` | Blocked seller constraint violations |
+## Project Structure
+
+```
+src/
+  agents/         # agent implementations (rule_based, llm_free_language)
+  core/           # types, config, seeded RNG, event logging
+  llm/            # Ollama and HuggingFace backends, prompt construction, JSON schemas
+  negotiation/    # session protocol, action judge, parser, feasibility, constraints
+  market/         # market simulator, catalog, matching strategies, shocks
+  evaluation/     # metrics, statistical utilities, CSV/JSON report writers
+experiments/
+  run_free_language_all.py       # main experiment runner (Experiments 1-6)
+  run_shock_anchor_ablation.py   # anchor-mode ablation runner (Experiment 4 extension)
+  experiments.py                 # experiment definitions and orchestration
+  configs/                       # YAML experiment configurations
+results/                         # final experiment outputs
+paper/                           # FYP thesis LaTeX source
+tests/                           # unit and integration tests
+docs/                            # analysis notes and revision plans
+```
+
+## Experiment Configurations
+
+Each experiment is configured via a YAML file in `experiments/configs/`:
+
+| Config | Experiment | Mode | Agent |
+|--------|-----------|------|-------|
+| `exp_concession.yaml` | 1 - Concession | session, fixed | llm_free_language + rule_based |
+| `exp_deadline.yaml` | 2 - Deadline | session, fixed | llm_free_language |
+| `exp_market_dynamics.yaml` | 3 - Market dynamics | market, distribution | llm_free_language |
+| `exp_shock_response.yaml` | 4 - Supply shock + extension | market, distribution | llm_free_language |
+| `exp_mechanism.yaml` | 5 - Mechanism | market, distribution | llm_free_language |
+| `exp_supply_demand.yaml` | 6 - Supply-demand | market, distribution | llm_free_language |
 
 ## Running Tests
 
@@ -121,23 +115,8 @@ outputs/runs/20260208_143000_s42/
 python -m pytest tests/ -v
 ```
 
-## Project Structure
-
-```
-src/
-  core/           # types, config, RNG, logging
-  llm/            # Ollama backend, prompts, JSON schemas
-  agents/         # base, rule_based, llm_reactive, llm_deliberative, memory
-  negotiation/    # protocol, constraints, parser
-  market/         # catalog, matching, simulator, shocks
-  evaluation/     # metrics, reports
-experiments/
-  run.py          # single-run CLI
-  sweep.py        # parameter sweep CLI
-  configs/        # YAML configurations
-tests/            # unit + integration tests
-```
-
 ## Reproducibility
 
-All simulations are deterministic given the same `--seed`. The RNG is forked per time step to isolate randomness. LLM agents introduce non-determinism from the model itself, but the market generation and matching remain reproducible.
+All simulations are seed-controlled. Market generation, agent matching, and parameter sampling are deterministic given the same seed. LLM inference introduces non-determinism from the model itself, but the experimental framework ensures structural reproducibility across runs.
+
+Seeds used in final experiments: 42, 123, 456.

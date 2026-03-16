@@ -1,7 +1,0 @@
-condition,seed,avg_buyer_value,avg_seller_cost,mean_price,liquidity,total_welfare,buyer_surplus,seller_surplus,price_dispersion
-baseline,42,115.0,85.0,86.31,0.52,48.73,34.13,14.6,14.38
-baseline,123,115.0,85.0,87.33,0.56,49.84,32.82,17.02,14.21
-demand_shock,42,135.0,85.0,85.52,0.6,66.26,50.43,15.83,16.29
-demand_shock,123,135.0,85.0,90.34,0.72,57.83,43.84,14.0,13.22
-supply_shock,42,115.0,105.0,98.87,0.24,43.3,23.02,20.28,8.36
-supply_shock,123,115.0,105.0,107.82,0.24,43.76,15.55,28.21,10.52

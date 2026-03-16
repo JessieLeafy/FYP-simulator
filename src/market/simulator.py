@@ -11,7 +11,6 @@ import os
 import time
 from typing import Callable, Optional
 
-from src.agents.memory_agent import MemoryStore
 from src.core.config import SimulationConfig, resolve_fixed_params
 from src.core.logging import EventLogger
 from src.core.rng import SeededRNG
@@ -84,14 +83,6 @@ class MarketSimulator:
         # lazy LLM backend (reuse pre-built backend if provided)
         self._backend: Optional[OllamaLLMBackend | HuggingFaceBackend] = backend
 
-        # memory stores (for memory agents)
-        # When memory_per_agent is True, each agent gets its own store
-        # (created in _create_agent); shared stores are unused.
-        self._memory_per_agent = config.memory_per_agent
-        self._buyer_memory = MemoryStore(k=config.memory_k)
-        self._seller_memory = MemoryStore(k=config.memory_k)
-        self._agent_memories: dict[str, MemoryStore] = {}  # agent_id → store
-
         # anchor tracking: effective reference price per item_id
         # (used by anchor_mode "updated" and "no_anchor")
         self._original_ref_prices: dict[str, float] = {
@@ -151,60 +142,15 @@ class MarketSimulator:
     def _create_agent(
         self, agent_type: str, role: AgentRole, agent_id: str = "",
     ):
-        from src.agents.llm_deliberative import LLMDeliberativeAgent
         from src.agents.llm_free_language import LLMFreeLanguageAgent
-        from src.agents.llm_reactive import LLMReactiveAgent
-        from src.agents.memory_agent import MemoryAgent, ReputationAgent
         from src.agents.rule_based import RuleBasedAgent
 
         pcfg = self.config.prompt
 
         if agent_type == "rule_based":
             return RuleBasedAgent()
-        if agent_type == "llm_reactive":
-            return LLMReactiveAgent(self._get_backend(), prompt_cfg=pcfg)
-        if agent_type == "llm_deliberative":
-            return LLMDeliberativeAgent(self._get_backend(), prompt_cfg=pcfg)
         if agent_type == "llm_free_language":
             return LLMFreeLanguageAgent(self._get_backend(), prompt_cfg=pcfg)
-        if agent_type == "memory":
-            if self._memory_per_agent and agent_id:
-                # per-agent memory for reputation experiments
-                if agent_id not in self._agent_memories:
-                    self._agent_memories[agent_id] = MemoryStore(
-                        k=self.config.memory_k,
-                    )
-                store = self._agent_memories[agent_id]
-            else:
-                store = (
-                    self._buyer_memory
-                    if role == AgentRole.BUYER
-                    else self._seller_memory
-                )
-            return MemoryAgent(
-                self._get_backend(), memory_store=store, prompt_cfg=pcfg,
-            )
-        if agent_type == "reputation":
-            # reputation agent always uses per-agent memory + reputation
-            mem_key = f"rep_mem_{agent_id}"
-            rep_key = f"rep_store_{agent_id}"
-            if mem_key not in self._agent_memories:
-                self._agent_memories[mem_key] = MemoryStore(
-                    k=self.config.memory_k,
-                )
-            # store ReputationStore objects alongside MemoryStores
-            if not hasattr(self, "_reputation_stores"):
-                self._reputation_stores: dict = {}
-            if rep_key not in self._reputation_stores:
-                from src.agents.memory_agent import ReputationStore
-                self._reputation_stores[rep_key] = ReputationStore()
-            return ReputationAgent(
-                self._get_backend(),
-                memory_store=self._agent_memories[mem_key],
-                reputation_store=self._reputation_stores[rep_key],
-                prompt_cfg=pcfg,
-                role=role,
-            )
         raise ValueError(f"Unknown agent type: {agent_type}")
 
     # ── main loop ────────────────────────────────────────────────────────
@@ -278,12 +224,6 @@ class MarketSimulator:
                     seller_type, AgentRole.SELLER, seller.seller_id,
                 )
 
-                # set opponent IDs for reputation agents
-                if hasattr(buyer_agent, "set_opponent"):
-                    buyer_agent.set_opponent(seller.seller_id)
-                if hasattr(seller_agent, "set_opponent"):
-                    seller_agent.set_opponent(buyer.buyer_id)
-
                 session = NegotiationSession(
                     buyer_agent=buyer_agent,
                     seller_agent=seller_agent,
@@ -305,12 +245,6 @@ class MarketSimulator:
 
                 if on_session is not None:
                     on_session(result)
-
-                # feed memory agents
-                if hasattr(buyer_agent, "record_outcome"):
-                    buyer_agent.record_outcome(result)
-                if hasattr(seller_agent, "record_outcome"):
-                    seller_agent.record_outcome(result)
 
             # ── market mode: compute and log per-tick stats ───────────
             if is_market_mode and tick_results:

@@ -1,0 +1,38 @@
+{
+  "experiment": "mechanism",
+  "conditions": [
+    "random",
+    "surplus_max"
+  ],
+  "seeds": [
+    42,
+    123,
+    456
+  ],
+  "total_tick_records": 48,
+  "condition_stats": {
+    "random": {
+      "total_sessions": 192,
+      "deals_made": 163,
+      "deal_rate": 0.849,
+      "mean_price": 70.99,
+      "price_std": 22.41,
+      "allocative_efficiency": 0.8695,
+      "surplus_gini": 0.2918,
+      "buyer_surplus_mean": 25.62,
+      "seller_surplus_mean": 23.86
+    },
+    "surplus_max": {
+      "total_sessions": 143,
+      "deals_made": 118,
+      "deal_rate": 0.8252,
+      "mean_price": 72.36,
+      "price_std": 23.27,
+      "allocative_efficiency": 0.8494,
+      "surplus_gini": 0.3047,
+      "buyer_surplus_mean": 26.98,
+      "seller_surplus_mean": 26.66
+    }
+  },
+  "git_hash": "59407e6"
+}

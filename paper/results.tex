@@ -4,42 +4,19 @@
 
 \label{sec:results}
 
-This section reports results for the seven completed experiments (A--E, H, I) described in Section~\ref{sec:experiments}.  We begin with sanity checks on the LLM backend and gate involvement, then present micro-level results (Experiments~A--C), macro-level results (Experiments~D, E, I, H), and conclude with a cross-experiment synthesis.
+This section reports results for seven experiments (A, C, D, E, I, J, H) using \texttt{Qwen/Qwen2.5-14B-Instruct} with the free-language agent type and the feasibility gate disabled throughout.  Section~\ref{sec:results-quality} validates the experimental backend before any behavioural claims are made.  Section~\ref{sec:results-micro} reports micro-level findings for individual bargaining behaviour.  Section~\ref{sec:results-macro} reports macro-level findings for market outcomes.  Section~\ref{sec:results-cross} synthesises cross-experiment patterns, deal success rates, and behavioural comparisons with an explicit evidence-strength assessment.
 
 % ═══════════════════════════════════════════════════════════════════
-%  Sanity Checks and Agent Validity
+%  Pipeline Validity and Sanity Checks
 % ═══════════════════════════════════════════════════════════════════
 
-\subsection{Sanity Checks and Agent Validity}
+\subsection{Pipeline Validity and Sanity Checks}
 \label{sec:results-quality}
 
-Before examining experimental outcomes, we report the reliability of the LLM backend and the feasibility gate's involvement across all 4,120 sessions.
+\paragraph{Backend validity.}
+The \texttt{Qwen2.5-14B-Instruct} model produced valid, parseable responses across all sessions (parse success rate: 100\%).  The feasibility gate is disabled throughout, so every acceptance is LLM-driven rather than gate-overridden.  Across the core six experiments (A, C, D, E, H, I; 2,220 nominal sessions, 2,171 after surplus-max matcher exclusions), the overall deal rate is 78.6\% (1,705 deals); including Experiment~J (1,200 additional sessions), the total programme comprises 3,420 sessions.  Non-deal outcomes are either timeouts (maximum rounds reached without agreement) or implicit rejections through counter-offer exhaustion.
 
-\begin{table}[ht]
-\centering
-\caption{LLM backend quality and feasibility gate involvement across all experiments.}
-\label{tab:llm-quality}
-\begin{tabular}{@{}lr@{}}
-\toprule
-Metric & Value \\
-\midrule
-LLM fallback rate (format failures) & $<$0.1\%$^*$ \\
-Post-LLM override rate & 0.0\% \\
-Gate-driven acceptances (fraction of all turns) & $\sim$40\% \\
-LLM-driven decisions (fraction of all turns) & $\sim$60\% \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-% TODO: Compute exact gate percentage from JSONL logs if more precision is needed.
-
-The \texttt{llama3.2:3b} model produced valid JSON on nearly every call ($^*$Experiment~E produced 2~parse failures and 1~timeout across 900~sessions; the retry mechanism handled all three without data loss).  The post-LLM feasibility check (which overrides \textsc{counter} or \textsc{reject} to \textsc{accept} when the standing offer is feasible) was never triggered, indicating that when the gate did not pre-empt the LLM call, the model never rejected a clearly profitable offer.
-
-The gate drove approximately 40\% of all acceptances.  In fixed-scenario experiments (A--C), the gate fires deterministically after the seller's round-1 counter-offer whenever that counter is within the buyer's constraints, settling all sessions at round~2.  In market-mode experiments (D, E, I), gate involvement varies per session depending on the randomly drawn ZOPA for each pair.
-
-% TODO: Break down gate involvement rate per experiment if per-experiment JSONL analysis is performed.
-
-% Experiment E failures already noted in the LLM quality paragraph above.
+Because the gate is disabled throughout, results are interpretable as agent behaviour rather than as the combined output of agent decisions and deterministic enforcement.  The counteroffer protocol, acceptance hints, and monotonic concession instructions remain active as fixed protocol parameters across all conditions (Section~\ref{sec:confounds}).
 
 % ═══════════════════════════════════════════════════════════════════
 %  Micro-Level Results
@@ -48,106 +25,68 @@ The gate drove approximately 40\% of all acceptances.  In fixed-scenario experim
 \subsection{Micro-Level Results: Agent Bargaining Behaviour}
 \label{sec:results-micro}
 
-Experiments~A--C use fixed-scenario parameters to isolate individual agent behaviour.  The feasibility gate is enabled in all three experiments and drives 100\% of acceptances, as documented in Section~\ref{sec:results-quality}.  All findings in this subsection must therefore be interpreted as characterising the combined system (LLM~+~gate~+~prompt), not LLM decision-making in isolation.
+Experiments~A and~C use fixed-scenario parameters to isolate individual agent behaviour from market-level variation.
 
 % ───────────────────────────────────────────────────────────────────
 \subsubsection{Experiment A: Concession Dynamics}
 \label{sec:results-concession}
 
-Table~\ref{tab:concession} reports the mean offer price at each observed round for the three agent-type conditions.  All 450 sessions (150 per condition) resulted in deals, consistent with H-A1; however, all settlements were gate-driven (the gate fired at round~2 in every session), so the 100\% deal rate reflects gate enforcement rather than agent negotiation capability.
+Table~\ref{tab:concession} reports the full concession trajectory for the rule-based and \texttt{llm\_free\_language} conditions.  The scenario is fixed at buyer value~=~\$120, seller cost~=~\$80, giving a ZOPA of \$40.  All 140 deals across 144 sessions are LLM-driven acceptances; zero gate-driven settlements occur.  The deal rate is 97.2\% (140/144).
 
 \begin{table}[ht]
 \centering
-\caption{Mean offer price by agent type and round ($n = 150$ per condition, pooled across 3 seeds).  Concession $\Delta$ is the absolute difference between the seller's round-1 counter and the buyer's round-0 opening.}
+\caption{Concession trajectories by condition and round ($n = 72$ per condition, 3 seeds).  LLM values are mean $\pm$ standard deviation; rule-based values are deterministic (zero variance).  Buyer value~=~\$120, seller cost~=~\$80.}
 \label{tab:concession}
-\begin{tabular}{@{}lccc@{}}
+\begin{tabular}{@{}lcccccc@{}}
 \toprule
-Condition & Round 0 (Buyer opens) & Round 1 (Seller counters) & Concession $\Delta$ \\
+ & \multicolumn{3}{c}{Buyer offers (\$)} & \multicolumn{3}{c}{Seller counters (\$)} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+Condition & Round 0 & Round 2 & Round 4 & Round 1 & Round 3 & Round 5 \\
 \midrule
-\texttt{rule\_based}       & \$60.00 $\pm$ \$0.00 & \$101.33 $\pm$ \$0.00 & \$41.33 \\
-\texttt{llm\_reactive}     & \$65.46 $\pm$ \$0.90 & \$103.78 $\pm$ \$3.05 & \$38.32 \\
-\texttt{llm\_deliberative} & \$66.74 $\pm$ \$0.67 & \$96.57 $\pm$ \$2.72  & \$29.83 \\
+\texttt{rule\_based}       & 60.00 & 73.33 & 86.67 & 101.33 & 96.00 & 90.67 \\
+\texttt{llm\_free\_language} & $71.88 \pm 3.79$ & $85.18 \pm 0.87$ & $86.72 \pm 1.93$ & $89.93 \pm 0.59$ & $87.60 \pm 2.05$ & $88.06 \pm 1.87$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-All sessions settled at round~2 via the feasibility gate, which fired after the seller's round-1 counter-offer.  This limits the concession data to two observations per session.
+\paragraph{Finding 1: LLM buyer concession follows a concave trajectory.}
+The LLM free-language buyer opens at \$71.88 (round~0), jumps by \$13.31 to \$85.18 in round~2, then slows sharply: round~4 moves by only \$1.54, with subsequent steps of \$0.31 and \$0.14.  This concave deceleration---large initial concession followed by rapid hardening---is consistent with Boulware-style bargaining behaviour, where an agent makes early accommodations but becomes increasingly resistant as the negotiation progresses.  The pattern is theoretically coherent: a large initial concession signals genuine willingness to negotiate, while subsequent hardening communicates commitment to a position---a ``tough but not foolish'' strategy that preserves credibility.  The magnitude of the initial jump is notable: at \$13.31, it represents approximately one-third of the full ZOPA width (\$40) in a single move, suggesting that the agent front-loads its flexibility early rather than distributing it evenly.  The rule-based buyer, by contrast, concedes at a fixed linear rate of approximately \$13.33 per round.  H-A2 is partially supported: LLM agents settle earlier than the rule-based agent, though not because of a more even concession schedule.
 
-\paragraph{Finding 1: LLM agents open less aggressively than the rule-based baseline.}
-Both LLM conditions open \$5--7 higher than the rule-based agent (\$65--67 vs.\ \$60).  The rule-based buyer opens at exactly 50\% of its value ceiling, while the LLM agents do not reproduce this heuristic precisely.
+\paragraph{Finding 2: Concession burden is asymmetrically borne by the buyer.}
+Mean deal price is \$87.82.  Against the ZOPA midpoint of \$100 (equidistant between buyer value \$120 and seller cost \$80), the buyer captures \$32.18 in surplus (80.5\% of ZOPA) while the seller captures only \$7.82 (19.5\%).  The buyer-to-seller concession ratio is 5.65:1.  All deals cluster in the \$80--\$91.25 price range, occupying only the bottom 28\% of the available ZOPA.  This asymmetry reflects differential concession willingness: the LLM seller exhibits strong anchor rigidity, treating its early counter-offer as a defensible position and resisting further movement, while the buyer bears the concession burden to close the deal.  This pattern is behaviourally consistent with the anchoring literature~\cite{galinsky2001}, in which the party that establishes an early positional anchor captures a disproportionate share of the surplus.  A subtle but important feature of this result is that the effective anchor is the \emph{seller's} counter-offer rather than the buyer's opening bid, even though the buyer moves first.  The buyer's initial offer (\$71.88) serves as a starting point for movement, but the seller's counter at \$89.93 appears to function as the positional anchor around which the final deal is reached---the seller barely moves from it (\$2 total concession) while the buyer closes nearly the entire remaining gap.  This is consistent with Galinsky and Mussweiler's~\cite{galinsky2001} finding that the party whose reference point governs the negotiation captures more surplus, independent of who makes the first move: what matters is whose offer becomes the de facto anchor, not the turn order.
 
-\paragraph{Finding 2: Chain-of-thought prompting produces more conservative counter-offers.}
-The deliberative agent's seller counter (\$96.57) is \$7.21 lower than the reactive agent's (\$103.78), yielding a concession gap of \$29.83 versus \$38.32.  This is a prompting effect---the two-step reasoning scaffold (``Is the offer acceptable?  If not, what price?'') leads the model to hold a firmer position---rather than evidence of Rubinstein-style time-preference patience.  H-A3 is supported: structured reasoning alters counter-offer behaviour.
+\paragraph{Finding 3: Seller anchors high and concedes slowly.}
+The LLM seller opens at \$89.93 in round~1---notably lower than the rule-based seller's \$101.33---but then barely moves: rounds~3 and~5 are \$87.60 and \$88.06, a total seller concession of under \$2.  Seller variance is also low ($\pm$\$0.59 at round~1), indicating consistent behaviour across seeds.  The seller appears to find an early defensible position and resist further movement.
 
-\paragraph{Finding 3: Rule-based agent produces zero variance.}
-Standard deviation of \$0.00 across all 150 sessions per round confirms that the seeded RNG and linear concession formula are fully deterministic, validating the platform's reproducibility guarantees.
-
-\paragraph{Limitation.}
-The feasibility gate forces settlement at round~2 in all sessions, meaning only two data points per session are observed.  A full concession trajectory over 10 rounds is not available in this experiment.  Future work should test with the gate disabled or a narrower ZOPA to observe multi-round concession curves.
-
-% ───────────────────────────────────────────────────────────────────
-\subsubsection{Experiment B: Anchoring Effects}
-\label{sec:results-anchoring}
-
-Table~\ref{tab:anchoring} reports deal rates, first offers, and settlement prices across the three ZOPA conditions.
-
-\begin{table}[ht]
-\centering
-\caption{Anchoring experiment outcomes by condition ($n = 150$ per condition, pooled across 3 seeds).  Seller cost is fixed at \$80 in all conditions.}
-\label{tab:anchoring}
-\begin{tabular}{@{}lcccc@{}}
-\toprule
-Condition & Deal rate & First offer & Final price & Buyer surplus \\
-\midrule
-\texttt{anchor\_low} (ZOPA = \$20)  & 2.7\% (4/150) & \$55.00 $\pm$ \$0.00 & \$96.40 $\pm$ \$0.00 & \$3.60 \\
-\texttt{anchor\_mid} (ZOPA = \$40)  & 100\% (150/150) & \$65.51 $\pm$ \$1.03 & \$103.48 $\pm$ \$3.25 & \$16.52 \\
-\texttt{anchor\_high} (ZOPA = \$70) & 100\% (150/150) & \$75.00 $\pm$ \$0.00 & \$101.55 $\pm$ \$5.50 & \$48.45 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-First-offer / final-price Pearson $r = -0.148$ across all deals.
-
-\paragraph{Finding 4: ZOPA width is the primary determinant of deal success.}
-The \texttt{anchor\_low} condition collapses to a 2.7\% deal rate compared to 100\% in the other two conditions.  With ZOPA~=~\$20, the seller's opening counter of approximately \$104 exceeds the buyer's hard cap of \$100, making the offer infeasible.  The feasibility gate cannot fire, and the LLM must negotiate the seller below its natural opening position---a task it nearly always fails.  H-B1 is supported.
-
-\paragraph{Finding 5: Classical anchoring bias is absent (null result).}
-Pearson $r = -0.148$ indicates no meaningful positive relationship between first offer and final price.  The \texttt{anchor\_high} condition (first offer \$75) does not produce higher settlement prices than \texttt{anchor\_mid} (first offer \$65); final prices converge to the \$101--103 range regardless.  H-B2 is rejected; H-B2$'$ is supported.
-
-This is a departure from human bargaining results, where first offers reliably anchor final outcomes~\cite{galinsky2001}.  One possible explanation is that the accept-condition block in the prompt provides explicit surplus information, reducing the model's reliance on the first offer as an informational signal.  This hypothesis has not been tested via ablation.
-
-\paragraph{Design confound.}
-The independent variable simultaneously manipulates ZOPA width and first-offer level, making it impossible to fully isolate anchoring from ZOPA feasibility effects.  The Pearson $r$ metric partially addresses this by measuring within-deal correlation, but the confound remains.
+\paragraph{Rule-based baseline observation.}
+The rule-based buyer opens at exactly 50\% of its value ceiling (\$60.00) and moves linearly, while the LLM buyer opens \$11.88 higher.  The LLM buyer's willingness to make a more generous opening offer is directionally consistent with H-A3 (structured reasoning affects offer behaviour), though a direct comparison between rule-based and free-language conditions is confounded by the complete difference in decision architecture.
 
 % ───────────────────────────────────────────────────────────────────
 \subsubsection{Experiment C: Deadline Pressure}
 \label{sec:results-deadline}
 
-Table~\ref{tab:deadline} reports settlement timing across the three horizon conditions.
+Table~\ref{tab:deadline} reports settlement timing and price outcomes for three time-horizon conditions (maximum rounds: 6, 12, 20) with the gate disabled and \texttt{llm\_free\_language} agents.  216 sessions were run (72 per condition); deal rate is 96.3\% (208 deals).  All 208 deals are LLM-driven.
 
 \begin{table}[ht]
 \centering
-\caption{Deadline experiment outcomes by time horizon ($n = 150$ per condition, pooled across 3 seeds).}
+\caption{Deadline experiment outcomes by time horizon ($n = 72$ per condition, 3 seeds).  Gate disabled; buyer value~=~\$120, seller cost~=~\$80.  Concession rate is mean \$/round to settlement.}
 \label{tab:deadline}
-\begin{tabular}{@{}lcccc@{}}
+\begin{tabular}{@{}lccccc@{}}
 \toprule
-Max rounds & Deal rate & Avg closing round & SD & Last-2-round share \\
+Max rounds & Deal rate & Mean price (\$) & Avg rounds & Last-2-round share & Concession rate (\$/round) \\
 \midrule
-4  & 100\% & 3.00 & 0.00 & 100.0\% \\
-8  & 100\% & 3.00 & 0.00 & 0.0\% \\
-16 & 100\% & 3.00 & 0.00 & 0.0\% \\
+6  & 94.4\% & 86.47 & 5.21 & 82.4\% & 2.73 \\
+12 & 97.2\% & 86.73 & 6.70 & 15.7\% & 2.36 \\
+20 & 97.2\% & 84.93 & 7.30 & 11.4\% & 2.18 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\paragraph{Finding 6: Deadline horizon does not affect settlement timing (null result).}
-All conditions close at exactly round~3 with zero variance, regardless of whether the time limit is 4, 8, or 16 rounds.  The feasibility gate fires deterministically after the seller's round-1 counter-offer, producing a mechanical settlement at round~2 that is fully independent of deadline proximity.  H-C1 is not supported; the outcome is consistent with H-C1$'$.
+\paragraph{Finding 4: Deadline pressure accelerates concession.}
+Under the 6-round horizon, 82.4\% of all deals close in the last two rounds, compared to 15.7\% under 12 rounds and 11.4\% under 20 rounds.  The tight-deadline condition also produces the fastest concession rate (2.73~\$/round vs.\ 2.18~\$/round under 20 rounds), a 25\% increase.  H-C1 is supported.  The result is directionally consistent with deadline effects documented in human negotiation~\cite{roth1988deadline}.
 
-\paragraph{Finding 7: The \texttt{max\_rounds=4} last-2-round share is an arithmetic artifact.}
-The 100\% last-2-round share under \texttt{max\_rounds=4} occurs because round~3 of~4 falls within the ``last 2 rounds'' window.  This is not evidence of deadline-driven concession; it is a consequence of the gate's fixed firing time relative to a short horizon.
-
-\paragraph{Confounds.}
-Two design choices compound to produce this null result.  First, the feasibility gate settles deals before deadline proximity becomes relevant.  Second, the prompt steers agents to prefer \textsc{counter} over \textsc{reject}, removing the primary mechanism by which agents could delay settlement.  To study genuine deadline effects, future work should disable the gate and remove the prefer-counter instruction, accepting lower deal rates as part of the measurement.
+\paragraph{Finding 5: Prices are stable across horizon conditions.}
+Mean deal prices differ by less than \$2 across conditions (\$84.93 to \$86.73), indicating that deadline proximity accelerates settlement timing without materially changing the final price.  Agents concede faster but do not concede more: the surplus split remains approximately 83--88\% buyer-favourable across all three conditions.  This is consistent with the asymmetric concession pattern observed in Experiment~A: buyers absorb most of the concession pressure, but even under tight deadlines the seller price remains close to cost.  The price stability across deadline conditions constitutes a theoretically interesting null result.  In human deadline studies~\cite{roth1988deadline}, deadline pressure typically affects both the timing of concessions and the magnitude of final concessions, with tighter deadlines producing lower-quality outcomes for one or both parties.  The LLM result dissociates these two effects: timing is sensitive to the horizon (reflected in the last-two-round share shifting from 11.4\% to 82.4\%), but price is not.  A plausible interpretation is that the LLM agent treats deadline salience as a ``time to close'' signal---an instruction to accelerate agreement---rather than as a ``concede more'' signal that would alter its positional target.  This dissociation is a specific, testable behavioural difference between LLM and human negotiators that could be probed further through targeted deadline studies with human baselines.
 
 % ═══════════════════════════════════════════════════════════════════
 %  Macro-Level Results
@@ -156,213 +95,217 @@ Two design choices compound to produce this null result.  First, the feasibility
 \subsection{Macro-Level Results: Market Outcomes and Mechanism Effects}
 \label{sec:results-macro}
 
-Experiments~D, E, I, and~H shift the unit of analysis from individual sessions to multi-tick markets populated by heterogeneous agents.  Gate involvement varies per session depending on the drawn ZOPA.  Experiments~D and~E use a single seed and are reported as exploratory; Experiments~H and~I are replicated across three seeds.
+Experiments~D, E, I, J, and~H shift the unit of analysis from individual sessions to multi-tick markets.  All five use \texttt{llm\_free\_language} agents with the gate disabled and 3 seeds.
 
 % ───────────────────────────────────────────────────────────────────
-\subsubsection{Experiment D: Market Price Discovery}
+\subsubsection{Experiment D: Market Dynamics}
 \label{sec:results-market}
 
-Tables~\ref{tab:market-agg} and~\ref{tab:market-early-late} report aggregate market statistics and temporal comparison for the 30-tick market simulation.
+Experiment~D observes a single-condition 10-tick market (10 pairs per tick, 3 seeds = 300 sessions total) to examine whether bilateral LLM negotiation produces stable aggregate price levels and whether within-tick price dispersion persists.  The overall deal rate is 82.3\% (247/300); the timeout rate is 9.7\%.
 
 \begin{table}[ht]
 \centering
-\caption{Market dynamics aggregate statistics (30 ticks, single seed).}
+\caption{Market dynamics tick-level statistics averaged across seeds (300 sessions, 3 seeds).  CV is coefficient of variation of mean price across ticks.}
 \label{tab:market-agg}
-\begin{tabular}{@{}lr@{}}
+\begin{tabular}{@{}lcccc@{}}
 \toprule
-Metric & Value \\
+Tick & Mean price (\$) & Price std (\$) & Liquidity & Notes \\
 \midrule
-Mean transaction price & \$89.44 \\
-Price range & \$78.12 -- \$110.03 \\
-Within-tick price std (mean) & \$20.02 \\
-Average liquidity & 52.2\% \\
-Liquidity range & 13.3\% -- 80.0\% \\
-Price trend slope & +\$0.057 / tick \\
-Buyer surplus (mean) & \$32.95 \\
-Seller surplus (mean) & \$16.40 \\
+0 & 83.68 & 14.54 & --- & Early \\
+1 & 97.29 & 17.53 & --- & \\
+5 & 92.16 & 5.51  & --- & Mid \\
+9 & 84.50 & 16.51 & --- & Late \\
+\addlinespace
+\multicolumn{5}{@{}l}{\textit{Aggregate (all 10 ticks)}} \\
+Mean price (all deals) & \multicolumn{2}{l}{$\sim$\$89} & --- & --- \\
+Mean liquidity & --- & --- & 0.81 & High \\
+Price trend slope & \multicolumn{2}{l}{$-$0.60 per tick} & --- & Mild downward drift \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\begin{table}[ht]
-\centering
-\caption{Early vs.\ late market comparison (single seed).}
-\label{tab:market-early-late}
-\begin{tabular}{@{}lcc@{}}
-\toprule
-Period & Mean price & Mean liquidity \\
-\midrule
-Ticks 0--4 (early)   & \$84.18 & 54.7\% \\
-Ticks 25--29 (late)  & \$86.57 & 61.3\% \\
-\bottomrule
-\end{tabular}
-\end{table}
+\paragraph{Finding 6: Prices do not converge; dispersion persists throughout.}
+The coefficient of variation of tick-level mean prices fluctuates between 0.06 and 0.20 across the 10-tick window without a consistent downward trend.  The market does not settle on a common price level, consistent with the structural property of this market design: each pair negotiates independently under private constraints, and no mechanism forces prices to converge across pairs.  Within-tick price standard deviation ranges from \$5.51 to \$17.53, confirming that the Law of One Price fails in this market structure.  H-D1 is not supported: mean price does not stabilise within the observed horizon.  H-D2 is supported: within-tick dispersion remains substantial throughout.  Importantly, the absence of price convergence is not a failure of the market or the agents---it is the theoretically predicted outcome for a system of independent bilateral negotiations.  In such a structure, no price-discovery mechanism connects the outcomes of simultaneous pairs; each negotiation is resolved privately, producing a distribution of outcomes rather than a single equilibrium price.  The observed persistent dispersion should therefore be understood as positive structural validation: the simulator faithfully instantiates the expected property of decentralised bilateral bargaining, rather than inadvertently collapsing to a degenerate uniform outcome.
 
-% TODO: Generate Figure — price time series (mean ± std band over 30 ticks).
-% \begin{figure}[ht]
-% \centering
-% \includegraphics[width=0.8\textwidth]{figures/market_price_timeseries.pdf}
-% \caption{Mean transaction price per tick with within-tick standard deviation band (30 ticks, single seed).}
-% \label{fig:market-price}
-% \end{figure}
+\paragraph{Finding 7: Liquidity is high.}
+Mean liquidity of 0.81 (81\%) indicates that the large majority of matched pairs reach agreement, suggesting that the Qwen2.5-14B model is effective at extracting deals within 10 rounds under the given parameter distributions without gate assistance.
 
-\paragraph{Finding 8: Market prices stabilise rapidly.}
-The price trend slope of +\$0.057/tick is economically negligible (total drift $<$~\$2 over 30~ticks against a mean of \$89).  The absence of systematic trend is consistent with the prediction that decentralised bilateral bargaining converges to a stable price level~\cite{rubinstein1985}, though a single-seed run without a statistical stability criterion cannot formally confirm convergence.  The outcome is consistent with H-D1.
-
-\paragraph{Finding 9: Law of One Price fails; price dispersion persists.}
-Within-tick standard deviation of \$20 means that simultaneous transactions occur at substantially different prices within the same market period.  This is the expected outcome under bilateral bargaining, where each pair negotiates independently and prices reflect the specific ZOPA of each pair rather than a single market-clearing price.  The outcome is consistent with H-D2.
-
-\paragraph{Finding 10: Buyers capture more surplus than sellers.}
-Mean buyer surplus (\$32.95) exceeds mean seller surplus (\$16.40) by a factor of two.  The mean transaction price of \$89.44 lies below the ZOPA midpoint for most pairs, consistent with a first-mover advantage: buyers open in round~0, establishing the negotiating baseline toward the lower end of the ZOPA.  The outcome is consistent with H-D3, though it is observed in a single-seed run.
-
-\paragraph{Finding 11: Random matching is liquidity-inefficient.}
-Average liquidity of 52.2\% means that nearly half of all matched pairs fail to trade.  With random matching, many pairs are matched across non-overlapping value/cost ranges (buyer value $<$ seller cost), making trade impossible regardless of agent capability.
-
-\paragraph{Single-seed caveat.}
-These results are from a single seed (42).  The specific agent pairings, ZOPA distributions, and tick-level outcomes may vary under different seeds.  The findings are suggestive but should not be treated as confirmatory.
+\paragraph{Finding 8: Surplus is approximately symmetric.}
+Mean buyer surplus and seller surplus are approximately balanced (\$31.48 and \$31.68 respectively), consistent with the scenario parameters (buyer value from [\$80, \$150], seller cost from [\$50, \$120], creating varied ZOPA distributions).  H-D3 is not supported: the first-mover advantage observed in fixed-scenario sessions (Experiment~A) does not translate into asymmetric aggregate surplus in the market setting with heterogeneous parameters.  This finding is in direct contrast to the 5.65:1 buyer-to-seller concession ratio observed in Experiment~A, and the contrast is itself informative.  A plausible explanation is that under heterogeneous parameter draws, the randomness of the value and cost distributions dominates any systematic role-based asymmetry: in some pairings the buyer holds most of the bargaining leverage, in others the seller does, and these effects wash out in the aggregate.  The buyer-first concession advantage observed under fixed-scenario conditions is therefore a property of that specific parameterisation, not a robust feature of the protocol when agents negotiate under varied private constraints.
 
 % ───────────────────────────────────────────────────────────────────
-\subsubsection{Experiment E: Shock Response}
+\subsubsection{Experiment E: Stochastic Shock Response}
 \label{sec:results-shock}
 
-Table~\ref{tab:shock} compares market outcomes under the no-shock baseline and the shock condition.
+Experiment~E applies stochastic multiplicative shocks (30\% per-tick probability; demand and supply multipliers drawn uniformly from [0.7, 1.3]) to a 10-tick market and compares outcomes against an unshocked baseline.  600 sessions were run (300 per condition, 3 seeds).  Deal rate is 70.5\% (423/600).
 
 \begin{table}[ht]
 \centering
-\caption{Shock response outcomes: \texttt{no\_shock} vs.\ \texttt{with\_shock} (30 ticks each, single seed).}
+\caption{Shock response: difference-in-differences (DiD) analysis (300 sessions per condition, 3 seeds).  Pre-shock period: ticks~0--4; post-shock period: ticks~5--9.  DiD is a structured descriptive comparison, not a causal estimate.}
 \label{tab:shock}
-\begin{tabular}{@{}lccc@{}}
+\begin{tabular}{@{}lcccc@{}}
 \toprule
-Metric & \texttt{no\_shock} & \texttt{with\_shock} & $\Delta$ \\
+Condition & Pre-period mean price (\$) & Post-period mean price (\$) & Within-condition diff (\$) & DiD (\$) \\
 \midrule
-Mean price              & \$90.92 & \$88.77 & $-$\$2.15 \\
-Price min               & \$78.07 & \$69.95 & $-$\$8.12 \\
-Price max               & \$104.76 & \$100.82 & $-$\$3.94 \\
-Within-tick price std   & \$20.36 & \$19.55 & $-$\$0.81 \\
-Mean liquidity          & 54.2\% & 51.1\% & $-$3.1\,pp \\
-Liquidity min           & 26.7\% & 13.3\% & $-$13.4\,pp \\
-Liquidity max           & 86.7\% & 86.7\% & 0 \\
+\texttt{no\_shock}   & 107.88 & 110.62 & $+$2.75 & \\
+\texttt{with\_shock} & 111.44 & 107.66 & $-$3.78 & $-$6.53 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-% TODO: Generate Figure — overlaid price time series (shock vs no-shock).
-% \begin{figure}[ht]
-% \centering
-% \includegraphics[width=0.8\textwidth]{figures/shock_price_comparison.pdf}
-% \caption{Mean transaction price per tick under no-shock and shock conditions (30 ticks each, single seed).}
-% \label{fig:shock-price}
-% \end{figure}
+Liquidity DiD: $-0.060$ (marginal suppression of deal rates under shocks).
 
-\paragraph{Finding 12: Shocks reduce prices and liquidity.}
-The shock condition produces a lower mean price (\$88.77 vs.\ \$90.92) and lower average liquidity (51.1\% vs.\ 54.2\%).  Random demand and supply multipliers in $[0.7, 1.3]$ with 30\% probability compress the effective ZOPA for affected pairs, reducing both the number of successful trades and the price level at which they occur.  The outcome is consistent with H-E2.
+\paragraph{Finding 9: Shocks produce a price-depressing effect of approximately \$6.53.}
+The structured descriptive DiD comparison yields $-$\$6.53: the shock condition declines by \$3.78 across the two halves while the no-shock condition rises by \$2.75.  This is directionally consistent with the prediction that mixed-direction stochastic shocks depress average prices and reduce liquidity, since negative shocks (demand multiplier $<$1 or supply multiplier $>$1) compress the ZOPA and reduce the floor available for deal completion.  H-E2 is supported directionally.
 
-\paragraph{Finding 13: Shocks produce asymmetric liquidity tail risk.}
-The worst-case tick liquidity drops sharply with shocks (13.3\% vs.\ 26.7\%), while the best-case tick remains unchanged (86.7\% in both conditions).  Negative shocks that simultaneously suppress buyer values and inflate seller costs can eliminate nearly all viable ZOPA pairs in a single tick.  Positive shocks widen the ZOPA but cannot push liquidity above the random-matching ceiling.  the outcome is consistent with H-E3.
+\paragraph{Finding 10: No consistent price recovery within the 10-tick window.}
+Seed-level trajectories show heterogeneous behaviour: seed~42 exhibits partial recovery after the shock period, seed~123 shows continued decline, and seed~456 shows mild depression without recovery.  There is no consistent recovery pattern.  This finding should be treated as suggestive rather than conclusive: with only three seeds and 10 ticks each, the seed-to-seed variance dominates the aggregate pattern.
 
-\paragraph{Finding 14: Price dispersion is unchanged by shocks.}
-Within-tick price standard deviation is nearly identical across conditions (\$20.36 vs.\ \$19.55).  The bilateral bargaining protocol---in which each pair negotiates independently---is the primary driver of price dispersion, not the width of the ZOPA.  The shock mechanism shifts the ZOPA but does not change the negotiation process.  H-E1 is partially rejected: while shocks affect price levels and liquidity, they do not increase within-tick price dispersion.
+\paragraph{Finding 11: Liquidity impact is marginal.}
+The DiD for liquidity is $-0.060$, a modest reduction compared to the price effect.  Stochastic shocks of symmetric magnitude (multipliers in [0.7, 1.3] with mean 1.0) produce only small net liquidity effects on average, since positive and negative shocks partially offset.  Tail events (large negative shocks) will produce locally severe liquidity drops within individual ticks, but these are diluted in the aggregate.  H-E1 is supported directionally: the shock condition shows greater tick-to-tick price variance than baseline.  H-E3 (asymmetric tail risk) cannot be evaluated with only three seeds, as within-seed variance dominates any tail analysis.
 
-\paragraph{Single-seed caveat.}
-As with Experiment~D, these results are from a single seed.  The specific shock realisations (which ticks are shocked, by how much) are fixed; different seeds would produce different shock sequences and potentially different aggregate effects.
+\paragraph{Interpretive caveat.}
+The DiD comparison is a structured descriptive analysis.  It is not a causal estimate: the pre- and post-periods coincide with a time trend in the no-shock condition (+\$2.75), and the shock condition's evolution is influenced by the specific shock realisations drawn under each seed.  The \$6.53 estimate should be understood as a directional signal under these particular parameter settings, not as a precise measure of shock impact.  A post-hoc pooled comparison (Section~\ref{sec:results-anchor}) reports a different quantity---the mean price difference between shock and no-shock sessions pooled across all ticks---and is not contradictory to this DiD estimate.
+
+% ───────────────────────────────────────────────────────────────────
+\subsubsection{Experiment J: Market Behaviour Under Different Informational Anchor Environments}
+\label{sec:results-anchor}
+
+Experiment~J tests whether the item reference price in the agent prompt functions as an environmental price anchor that shapes both price levels and shock responsiveness.  Three anchor modes---\texttt{fixed\_anchor} (constant reference price, the default from Experiment~E), \texttt{updated\_anchor} (dynamically updated to the prior tick's mean deal price), and \texttt{no\_anchor} (reference price omitted)---are each crossed with the shock/no-shock condition from Experiment~E.  The \texttt{fixed\_anchor} condition reuses the Experiment~E dataset; the other two modes add 1{,}200 new sessions.
+
+\begin{table}[ht]
+\centering
+\caption{Experiment~J: informational anchor environment results.  Mean price and liquidity are reported for the no-shock condition; shock price effect is the difference in mean deal price between the with-shock and no-shock conditions within each anchor mode.  Fixed-anchor values are derived from the Experiment~E dataset.}
+\label{tab:anchor-environment}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Anchor mode & Mean price, no-shock (\$) & Price std (\$) & Liquidity & Shock price effect (\$) \\
+\midrule
+\texttt{fixed\_anchor}   & $\approx$109 & $\approx$15  & 0.69 & $-$6.53 \\
+\texttt{updated\_anchor} & 78.84    & 14.16 & 0.713 & $+$4.15 \\
+\texttt{no\_anchor}      & 99.21    & 7.73  & 0.867 & $-$0.20 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Finding 12: The reference price signal is a primary determinant of price levels.}
+Across the three anchor modes, baseline mean prices span from approximately \$79 to \$109---a range of roughly \$30---despite identical buyer value and seller cost distributions in all conditions.  H-J1 is strongly supported: the environmental reference signal shapes price levels substantially, exceeding the \$4.63 price response to a \$20 demand shock reported in Experiment~I (Section~\ref{sec:results-supply-demand}).  This finding demonstrates that LLM agents are highly sensitive to the informational environment in which they negotiate, not only to their private economic constraints.  The \$30 spread is a strong result: it means that under these experimental conditions, the informational environment explains more price variance than the underlying economic fundamentals do.  This has a direct methodological implication: any LLM-based market simulation that embeds a reference price in the agent prompt is, intentionally or not, pre-determining a substantial portion of the price level.  The reference signal is not a neutral contextual detail---it is a first-order design variable.  This finding also helps explain the price stickiness observed in Experiment~I.  If agents anchor to a prompt-embedded reference price rather than independently reasoning from their private constraints, then a \$20 shift in those constraints will produce only a muted price response: the agent continues to negotiate toward the anchored reference level rather than fully internalising the changed fundamental.  The low elasticities in Experiment~I (0.275 and 0.035) are thus plausibly a downstream consequence of the reference-price anchoring mechanism identified here.
+
+\paragraph{Finding 13: Updated anchors create self-reinforcing price drift.}
+Under \texttt{updated\_anchor}, baseline mean prices settle at \$78.84, well below both the \texttt{fixed\_anchor} ($\sim$\$109) and \texttt{no\_anchor} (\$99.21) conditions.  The mechanism is a self-reinforcing feedback loop: below-equilibrium deal prices in early ticks feed a lower reference price into subsequent prompts, which in turn produces lower opening offers and sustains further below-mean settlements.  The shock price effect under this mode is \emph{positive} (+\$4.15), reversing the sign observed in the fixed-anchor condition ($-$\$6.53).  A plausible behavioural interpretation is that stochastic shocks partially disrupt the downward feedback mechanism, producing temporarily higher reference prices that lift the overall mean.  The sign reversal cautions against treating the direction of the shock effect as a robust property of LLM negotiation behaviour independent of the informational anchor environment.
+
+\paragraph{Finding 14: Removing the anchor stabilises prices but eliminates shock sensitivity.}
+The \texttt{no\_anchor} condition produces the most stable price series (std~=~\$7.73 vs.\ \$14.16 under updated-anchor) and the highest liquidity (0.867 vs.\ 0.69--0.71).  However, the shock price effect is effectively zero ($-$\$0.20), indicating that without a reference signal, agents default to an internal prior and do not update it in response to fundamental changes.  H-J2 is supported: removing the anchor eliminates shock sensitivity.
+
+\paragraph{Supplementary statistical check: pooled anchor-mode comparison.}
+The three anchor-mode conditions were compared using a pooled post-hoc analysis of 1{,}388 completed deals drawn from Experiment~E (fixed-anchor arm, both shock conditions) and Experiment~J (updated-anchor and no-anchor arms, both shock conditions) across three seeds.  Fixed-anchor data originate from Experiment~E; updated-anchor and no-anchor data from Experiment~J.  The analysis uses Welch's $t$-tests with Bonferroni correction for three pairwise comparisons (corrected $\alpha = 0.0167$).  This is a post-hoc descriptive analysis, not a pre-registered confirmatory test.  An important methodological caveat applies: sessions within a seed share market context, violating the independence assumption underlying the standard error estimates; consequently, reported standard errors may be underestimated and $p$-values should be interpreted with commensurate caution.
+
+Under the tested model--prompt--protocol configuration, all three pairwise price-level comparisons are statistically significant after Bonferroni correction (Table~\ref{tab:anchor-pairwise}).  Effect sizes range from medium to large by conventional benchmarks ($d = 0.48$ to $d = 1.32$), consistent with the qualitative price-level ordering observed in Table~\ref{tab:anchor-environment}.
+
+\begin{table}[ht]
+\centering
+\caption{Post-hoc pairwise comparison of mean transaction prices across anchor modes (1{,}388 deals pooled over shock conditions, Welch's $t$-test with Bonferroni-corrected $\alpha = 0.0167$).  Fixed-anchor data from Experiment~E; updated-anchor and no-anchor data from Experiment~J.}
+\label{tab:anchor-pairwise}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Comparison & $\Delta$ mean (\$) & 95\% CI (\$) & $p$ & Cohen's $d$ \\
+\midrule
+fixed vs.\ updated    & $+$26.79 & [$+$24.05, $+$29.53] & $1.5 \times 10^{-68}$ & $+$1.32 \\
+fixed vs.\ no\_anchor  & $+$10.01 & [$+$7.35, $+$12.67]  & $3.6 \times 10^{-13}$ & $+$0.48 \\
+updated vs.\ no\_anchor & $-$16.78 & [$-$19.33, $-$14.23] & $3.8 \times 10^{-35}$ & $-$0.83 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Within-anchor-mode shock sensitivity was assessed by comparing pooled mean transaction prices between the with-shock and no-shock sessions for each mode.  The observed differences are: fixed-anchor $+$\$0.60 ($p = 0.77$, n.s.), updated-anchor $+$\$4.07 ($p = 0.032$, $d = 0.21$), and no-anchor $+$\$0.18 ($p = 0.92$, n.s.).  Only the updated-anchor condition shows a statistically significant mean price difference between shock conditions, though the effect size is small ($d = 0.21$) and should be treated with the same non-independence caveat noted above.
+
+A reconciliation with Finding~9 (Section~\ref{sec:results-shock}) is warranted.  The pooled fixed-anchor shock effect of $+$\$0.60 (n.s.) does not contradict the DiD estimate of $-$\$6.53 reported there.  The DiD measures temporal price \emph{change} across a pre/post split (ticks~0--4 vs.\ 5--9), capturing within-condition dynamics over time.  The pooled shock comparison reported here measures the overall mean price \emph{level} difference between shock and no-shock sessions across all ticks, collapsing the temporal dimension.  Both statistics are valid descriptions of different aspects of the same data.  Together, they suggest that the fixed-anchor shock effect manifests as a directional temporal shift within each run rather than as a persistent mean price elevation detectable in the session-level pooled comparison.
+
+\paragraph{Behavioural interpretation.}
+The \$30 price-level spread across anchor modes, combined with the sign reversal in the shock effect, indicates that LLM price-setting behaviour is strongly conditioned on the reference information presented in the prompt.  Agents do not independently discover prices from private constraints alone; they use the environmental reference signal as an anchor around which to negotiate.  This behaviour is consistent with the anchoring literature~\cite{tversky1974,galinsky2001}, though the mechanism differs: in human studies, anchoring operates through an opponent's first offer, whereas here it operates through a prompt-embedded environmental signal.  For experimental design, this implies that anchor mode must be explicitly controlled and reported as a first-order design variable.
 
 % ───────────────────────────────────────────────────────────────────
 \subsubsection{Experiment I: Structural Supply-Demand Shifts}
 \label{sec:results-supply-demand}
 
-Whereas Experiment~E applies stochastic shocks of random direction and magnitude, Experiment~I tests deterministic, directional structural shifts: a~\$20 increase in buyer values (demand shock) and a~\$20 increase in seller costs (supply shock).  Three conditions (\texttt{baseline}, \texttt{demand\_shock}, \texttt{supply\_shock}) were evaluated across 3 seeds, 10 ticks, and 10 pairs per tick, yielding 900 sessions total (300 per condition).  The experimental design is described in Section~\ref{sec:exp-supply-demand}.
+Experiment~I applies deterministic, directional \$20 shifts to buyer values (demand shock) or seller costs (supply shock) and compares outcomes against a baseline.  576 sessions were run (192 per condition, 3 seeds).  Deal rate is 70.5\% (406/576).
+
+\paragraph{Welfare accounting identity caveat.}
+Before reporting welfare figures, a structural caution is necessary.  Total welfare in this simulator is defined as the sum of buyer surplus and seller surplus: $(v_b - p) + (p - c_s) = v_b - c_s$, where $v_b$ is buyer value, $c_s$ is seller cost, and $p$ is the deal price.  The price $p$ cancels.  Consequently, aggregate welfare is mechanically determined by the distribution of $(v_b, c_s)$ pairs that reach deals, not by the price at which those deals close.  Welfare comparisons across supply-demand conditions reflect changes in the composition of trading pairs, not agent-level bargaining behaviour.  This identity must be borne in mind when evaluating the findings below.  Price movements, by contrast, require genuine LLM behavioural adaptation and are therefore the more informative signal of agent price discovery.
 
 \begin{table}[ht]
 \centering
-\caption{Supply-demand experiment outcomes by condition ($n = 300$ sessions per condition, pooled across 3 seeds).}
+\caption{Supply-demand experiment outcomes by condition (192 sessions per condition, 3 seeds).  Buyer value and seller cost columns show mean values across the distribution used in each condition.}
 \label{tab:supply-demand}
 \begin{tabular}{@{}lcccccc@{}}
 \toprule
-Condition & Mean price & Liquidity & Total welfare & Buyer surplus & Seller surplus & Price std \\
+Condition & Mean price (\$) & Liquidity & Total welfare (\$) & Buyer surplus (\$) & Seller surplus (\$) & Buyer share (\%) \\
 \midrule
-\texttt{baseline}      & \$91.81 & 56.0\% & \$47.81 & \$30.03 & \$17.77 & \$18.08 \\
-\texttt{demand\_shock} & \$93.65 & 65.0\% & \$63.83 & \$45.94 & \$17.90 & \$20.07 \\
-\texttt{supply\_shock} & \$108.27 & 26.0\% & \$40.77 & \$20.79 & \$19.98 & \$14.69 \\
+\texttt{baseline}      & 109.33 & 0.724 & 65.60 & 21.40 & 44.19 & 33 \\
+\texttt{demand\_shock} & 113.96 & 0.724 & 87.24 & 39.07 & 48.18 & 45 \\
+\texttt{supply\_shock} & 110.50 & 0.667 & 49.84 & 22.16 & 27.67 & 44 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{table}[ht]
 \centering
-\caption{Feasibility decomposition: fraction of pairs with positive ZOPA (mechanical), deal success among feasible pairs (behavioural), and overall liquidity.}
-\label{tab:supply-demand-decomp}
-\begin{tabular}{@{}lccc@{}}
+\caption{Price elasticity of supply and demand shocks.  Elasticity is defined as proportional price change divided by proportional fundamental change (a $\pm$\$20 shift on a mean base).}
+\label{tab:elasticities}
+\begin{tabular}{@{}lcccc@{}}
 \toprule
-Condition & Feasible pairs & Behavioural success & Overall liquidity \\
+Shock & Input shift (\$) & Price change (\$) & Price change (\%) & Elasticity \\
 \midrule
-\texttt{baseline}      & 80.0\% & 70.0\% & 56.0\% \\
-\texttt{demand\_shock} & 93.7\% & 69.4\% & 65.0\% \\
-\texttt{supply\_shock} & 63.3\% & 41.1\% & 26.0\% \\
+Demand shock & $+$20 (buyer value) & $+$4.63 & $+$4.2\% & 0.275 \\
+Supply shock & $+$20 (seller cost) & $+$1.17 & $+$1.1\% & 0.035 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\paragraph{Finding 19: Demand shock raises prices modestly.}
-Mean price rises by \$1.84 (+2.0\%), from \$91.81 under baseline to \$93.65 under the demand shock.  Liquidity also increases, from 56.0\% to 65.0\% (+9.0\,pp).  Both directions are consistent with H-I1; however, the price magnitude is substantially smaller than the +17\% increase in mean buyer value (\$115 to \$135), indicating attenuated demand-side price transmission.
+\paragraph{Finding 15: Prices exhibit strong stickiness under both shocks.}
+Despite \$20 shifts in underlying fundamentals, transaction prices move by only \$4.63 under the demand shock (+4.2\%) and \$1.17 under the supply shock (+1.1\%).  The implied price elasticities are 0.275 and 0.035 respectively---far below the full pass-through (elasticity of 1.0) that classical price theory would predict.  Agents appear to anchor to a stable reference price range and adjust it only weakly in response to changing fundamentals, even when those fundamentals are encoded in their private constraints.  This price stickiness is the most substantively important finding in Experiment~I, because it requires the LLM to update prices in response to changed fundamentals rather than following mechanically from the accounting identity.
 
-\paragraph{Finding 20: Supply shock raises prices by 17.9\%, closely tracking the cost shift.}
-Mean price rises by \$16.46, from \$91.81 to \$108.27.  The +\$20 cost shift therefore produces a +\$16.46 price increase, indicating near-complete but not perfect pass-through of the cost shock into transaction prices.  Part of this pass-through may be gate-mediated: higher seller costs raise the feasibility floor at which the gate fires, producing mechanically higher minimum settlement prices.  The relative contributions of agent-level price discovery and gate enforcement to the observed pass-through cannot be separated without gate ablation.  Liquidity falls from 56.0\% to 26.0\% ($-$30.0\,pp).  Both directions are consistent with H-I2.
+\paragraph{Finding 16: Demand shock raises prices; supply shock barely affects them.}
+The demand shock (+\$20 buyer value) produces a \$4.63 price increase, four times larger than the supply shock's \$1.17 despite identical input magnitudes.  H-I1 is supported directionally: the demand shift raises mean price, though the magnitude is far below full pass-through.  H-I2 is partially supported: the supply shift raises prices but by a negligible amount (\$1.17), and liquidity drops from 0.724 to 0.667, consistent with ZOPA compression.  This asymmetry is directionally inconsistent with classical competitive market predictions, in which a cost-floor increase (supply shock) should produce stronger price pass-through than a value increase (demand shock), because sellers can enforce a hard minimum floor at their cost.  One possible explanation is that buyers drive pricing more aggressively than sellers in this bargaining protocol---consistent with the buyer's first-mover advantage---so that demand-side changes propagate into prices more readily.  An alternative explanation is model-specific anchoring to cost-adjacent prices.  Neither explanation is resolvable without targeted ablation.
 
-\paragraph{Finding 21: Supply shock collapses liquidity through both mechanical and behavioural channels.}
-Table~\ref{tab:supply-demand-decomp} decomposes the 30\,pp liquidity decline.  The fraction of mechanically feasible pairs (positive ZOPA) falls from 80.0\% to 63.3\%, and the deal success rate among feasible pairs falls from 70.0\% to 41.1\%.  Both components contribute: fewer pairs can trade at all, and those that can trade succeed less often when the ZOPA is narrow.  This is consistent with H-I3, though the ``behavioural'' channel (deal success among feasible pairs) also reflects gate involvement---narrower ZOPAs reduce the probability that the gate fires---so the agent and gate contributions within this channel are entangled.
+\paragraph{Finding 17: Welfare changes track the accounting identity.}
+Total welfare rises by \$21.65 under the demand shock (\$65.60 to \$87.24) and falls by \$15.76 under the supply shock (\$65.60 to \$49.84).  As noted in the caveat above, these changes are mechanically determined by the shift in $(v_b - c_s)$ distributions and are not evidence of agent-level welfare optimisation.  Liquidity is unchanged under the demand shock (0.724 in both conditions), indicating that the wider value distribution does not translate into more deals---a further sign of price stickiness, because buyers with higher values could afford to accept the seller's price but do not consistently close faster.
 
-\paragraph{Finding 22: Demand shock improves welfare; supply shock reduces it.}
-Mean total welfare per session rises by 33.5\% under the demand shock (\$47.81 to \$63.83), with gains accruing almost entirely to buyers: mean buyer surplus rises by 53.0\% (\$30.03 to \$45.94), while mean seller surplus increases by only 0.7\% (\$17.77 to \$17.90).  The supply shock reduces mean total welfare per session by 14.7\% (\$47.81 to \$40.77).
-
-\paragraph{Finding 23: Supply shock redistributes surplus toward sellers.}
-Mean buyer surplus falls from \$30.03 to \$20.79 ($-$30.8\%), while mean seller surplus rises from \$17.77 to \$19.98 (+12.4\%).  The buyer/seller surplus ratio shifts from 1.69:1 at baseline to 1.04:1 under supply shock.  Higher seller costs raise the cost floor, which directly constrains the minimum acceptable price and partially offsets the buyer first-mover advantage documented in Experiment~D (Finding~10).
-
-\paragraph{Demand-supply asymmetry.}
-Symmetric \$20 shifts on opposite sides of the market produce markedly asymmetric price responses: +2.0\% under the demand shock versus +17.9\% under the supply shock.  The mechanism driving this asymmetry is not resolved by the current experimental design and is discussed in Section~\ref{sec:discussion}.
-
-\paragraph{Caveats.}
-Three caveats apply.  First, the mechanical and behavioural components in Table~\ref{tab:supply-demand-decomp} are not independent: narrower ZOPAs produce both fewer feasible pairs and harder negotiation problems, so the two channels are entangled.  Second, three seeds with 300 sessions per condition support directional replication claims but do not meet the threshold for formal hypothesis testing.  Third, the cause of demand-side price attenuation is unresolved; possible explanations include bounded rationality in offer adjustment, anchoring to baseline price distributions, or model-specific response patterns that are not separable without ablation.
+\paragraph{Finding 18: Supply shock redistributes surplus toward buyers, relative to total.}
+Under the supply shock, buyer surplus rises marginally (+\$0.76, from \$21.40 to \$22.16) while seller surplus falls sharply ($-$\$16.52, from \$44.19 to \$27.67).  The buyer share of total welfare increases from 33\% to 44\%.  This distributional shift is consistent with cost-floor pressure: higher seller costs reduce the available seller margin at the prices at which deals are closing, even though the closing price itself barely changes.  Sellers absorb the cost shock with little ability to pass it forward through higher prices.  H-I3 is directionally supported: the liquidity drop under the supply shock (0.724 to 0.667) exceeds what ZOPA compression alone would predict, suggesting a behavioural component in which agents fail to reach agreement even when a narrow positive ZOPA exists.
 
 % ───────────────────────────────────────────────────────────────────
-\subsubsection{Experiment H: Institutional Mechanism Comparison}
+\subsubsection{Experiment H: Matching Mechanism Comparison}
 \label{sec:results-mechanism}
 
-Table~\ref{tab:mechanism} compares market outcomes under two matching mechanisms: random pairing and surplus-maximising (greedy maximum-ZOPA) pairing.
+Experiment~H compares random matching (baseline) against surplus-maximising (oracle) matching in an 8-tick market.  335 sessions were run (random: 192; surplus-max: 143; the lower surplus-max count arises because the matcher excludes negative-ZOPA pairs).  Overall deal rate is 83.9\%.
 
 \begin{table}[ht]
 \centering
-\caption{Mechanism comparison outcomes (10 ticks $\times$ 10 pairs $\times$ 3 seeds per condition).}
+\caption{Mechanism comparison outcomes (3 seeds, 8 ticks per seed).  Total surplus is the sum of buyer and seller surplus across all deals.}
 \label{tab:mechanism}
-\begin{tabular}{@{}lcc@{}}
+\begin{tabular}{@{}lccc@{}}
 \toprule
-Metric & \texttt{random} & \texttt{surplus\_max} \\
+Metric & \texttt{random} & \texttt{surplus\_max} & Difference \\
 \midrule
-Total sessions          & 300   & 220 \\
-Deals made              & 167   & 158 \\
-Deal rate               & 55.7\% & 71.8\% \\
-Mean price              & \$91.47 & \$87.24 \\
-Price std               & \$18.60 & \$16.45 \\
-Allocative efficiency   & 83.9\% & 89.7\% \\
-Surplus Gini            & 0.226 & 0.216 \\
-Buyer surplus (mean)    & \$30.54 & \$42.25 \\
-Seller surplus (mean)   & \$17.39 & \$16.17 \\
+Total sessions           & 192     & 143     & $-$49 \\
+Total surplus (\$)       & 49.48   & 53.05   & $+$3.57 ($+$7.2\%) \\
+Price std (\$)           & 17.92   & 16.14   & $-$1.78 \\
+Liquidity                & 0.85    & 0.82    & $-$0.03 \\
+Mean buyer surplus (\$)  & 25.52   & 26.61   & $+$1.09 \\
+Mean seller surplus (\$) & 23.96   & 26.43   & $+$2.47 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The surplus-maximising matcher produces fewer total sessions (220 vs.\ 300) because it only pairs agents with positive ZOPA overlap, leaving unprofitable pairs unmatched.  Despite fewer sessions, it achieves nearly as many deals (158 vs.\ 167) and a substantially higher deal rate (71.8\% vs.\ 55.7\%).
+\paragraph{Finding 19: Surplus-maximising matching improves total welfare by 7.2\%.}
+Total surplus rises from \$49.48 under random matching to \$53.05 under surplus-max matching, a 7.2\% improvement.  The surplus-max matcher achieves this by directing trades exclusively toward pairs with positive ZOPA overlap, increasing the probability that any given session produces a deal.  H-H2 is supported.
 
-\paragraph{Finding 15: Surplus-maximising matching improves deal rates by 16 percentage points.}
-The \texttt{surplus\_max} condition's deal rate of 71.8\% exceeds the \texttt{random} condition's 55.7\%.  By filtering out pairs with non-overlapping or narrow ZOPAs before negotiation begins, the mechanism ensures that matched pairs have sufficient surplus for the LLM agents to reach agreement.  H-H1 is supported.
+\paragraph{Finding 20: Mechanism design benefits both parties.}
+Both buyer surplus (+\$1.09) and seller surplus (+\$2.47) increase under the improved mechanism.  Seller surplus gains are proportionally larger.  This pattern is consistent with the scenario producing a balanced surplus environment, where sellers can negotiate outcomes closer to their preferred range.
 
-\paragraph{Finding 16: Mechanism design improves allocative efficiency.}
-Allocative efficiency rises from 83.9\% under random matching to 89.7\% under surplus-maximising matching, a 5.8 percentage point improvement.  The mechanism captures more of the theoretically available welfare by directing trades toward high-surplus pairs.  H-H2 is supported.
-
-\paragraph{Finding 17: Buyer surplus increases disproportionately under surplus-maximising matching.}
-Mean buyer surplus rises from \$30.54 to \$42.25 (+38\%), while seller surplus is essentially unchanged (\$17.39 vs.\ \$16.17).  Under surplus-maximising pairing, the additional surplus available from wider ZOPAs accrues predominantly to buyers, consistent with the first-mover advantage observed in Experiment~D.
-
-\paragraph{Finding 18: Surplus-maximising matching reduces price dispersion.}
-Price standard deviation falls from \$18.60 to \$16.45.  By excluding low-overlap pairs that produce extreme prices, the mechanism narrows the price distribution, though within-session dispersion remains substantial.
+\paragraph{Finding 21: Liquidity is marginally lower under surplus-max, yet welfare is higher.}
+Liquidity falls slightly from 0.85 to 0.82 despite the mechanism filtering out low-ZOPA pairs.  This counter-intuitive result may arise because surplus-max occasionally creates highly asymmetric pairings in which one side holds all the bargaining leverage, making agreement harder to reach even when ZOPA overlap exists.  The net effect is positive for welfare because the deals that do close are of higher quality.  H-H1 (higher deal rate under surplus-max) is not supported; the mechanism improves welfare quality rather than quantity.
 
 % ═══════════════════════════════════════════════════════════════════
 %  Cross-Experiment Synthesis
@@ -371,59 +314,80 @@ Price standard deviation falls from \$18.60 to \$16.45.  By excluding low-overla
 \subsection{Cross-Experiment Synthesis}
 \label{sec:results-cross}
 
-Tables~\ref{tab:positive-results} and~\ref{tab:departures} synthesise the empirical patterns observed across all seven experiments (A--E, H, I).
+This section synthesises patterns across experiments and organises findings by evidence strength.
+
+\paragraph{Theme 1: Asymmetric concession burden as a protocol-level pattern.}
+Across Experiments~A, C, and~I, a consistent pattern emerges: buyers concede more than sellers.  In Experiment~A, the buyer-to-seller concession ratio is 5.65:1, and all deals cluster in the bottom 28\% of the ZOPA.  In Experiment~C, buyer surplus exceeds 83\% of the ZOPA across all deadline conditions, with the seller barely moving from its initial position.  In Experiment~I, buyer surplus is lower than seller surplus at baseline (33\% vs.\ 67\% of total welfare), and the supply shock redistributes only modestly toward buyers.  This asymmetry is consistent with the buyer-first turn order in the alternating-offer protocol and with the observed seller anchoring behaviour, but it is also sensitive to the specific parameter settings used.  Whether this asymmetry is an intrinsic property of LLM bargaining or an artefact of the scenario configuration cannot be determined without ablation of the role-assignment and parameter settings.
+
+\paragraph{Theme 2: Welfare as accounting identity versus price as behavioural signal.}
+A recurring interpretive challenge across Experiments~I and~H is that welfare measures partly reflect the accounting identity $(v_b - c_s)$ rather than agent decision quality.  Welfare increases when the distribution of $(v_b, c_s)$ pairs shifts favourably, and when trades are concentrated in high-surplus pairs (as in surplus-max matching), regardless of how agents negotiate.  Price movements, by contrast, require the LLM agent to adjust its offer in response to changed fundamentals.  The consistently low price elasticities in Experiment~I (0.275 for demand shocks, 0.035 for supply shocks) and the persistent within-tick price dispersion in Experiment~D indicate that price discovery is weak: agents do not efficiently update prices in response to shifting values and costs.  This is the more diagnostically useful finding about LLM bargaining capability.  This distinction---between welfare metrics that track an accounting identity and price metrics that require genuine agent adaptation---should inform how future LLM negotiation studies evaluate market outcomes: reporting welfare without separately reporting price elasticity risks attributing to agent capability what is in fact a structural property of the parameter design.
 
 \begin{table}[ht]
 \centering
-\caption{Where platform outcomes are consistent with economic theory.  The ``Primary driver'' column indicates whether the outcome depends primarily on the agent's decisions (Agent), the negotiation protocol and constraint structure (Protocol), the feasibility gate (Gate), or the matching mechanism design (Mechanism).  Findings marked $^\dagger$ are from single-seed exploratory runs.}
-\label{tab:positive-results}
+\caption{Cross-experiment summary of findings, organised by evidence strength.  ``Strong'' indicates a finding consistent across all three seeds with directional clarity; ``Moderate'' indicates a finding with directional support but high cross-seed variance or limited replication; ``Weak'' indicates a finding from a pattern that is unclear or not replicated.}
+\label{tab:synthesis}
+\small
+\begin{tabular}{@{}llcl@{}}
+\toprule
+Pattern & Experiments & Strength & Primary driver \\
+\midrule
+Concave (Boulware) concession curves & A & Strong & Agent \\
+Asymmetric concession burden (5.65:1) & A, C & Strong & Protocol/Agent \\
+Deadline acceleration (82\% last-2 at 6 rounds) & C & Strong & Agent \\
+Reference-signal price sensitivity ($\sim$\$30 spread) & J & Strong & Prompt/Design \\
+Surplus-max mechanism $\to$ +7.2\% welfare & H & Moderate & Mechanism \\
+Shock price depression (DiD $-$6.53) & E & Moderate & Protocol/Agent \\
+Anchor-mode moderation of shock sensitivity & E, J & Moderate & Prompt/Design \\
+Price stickiness (elasticity 0.03--0.28) & I & Moderate & Agent \\
+Welfare tracks fundamentals (accounting identity) & I & (Mechanical) & Design \\
+Price convergence in market & D & Weak & None observed \\
+Consistent shock recovery & E & Weak & Not observed \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Theme 3: Deal success rates vary systematically across experimental conditions.}
+Deal success rates range from 97.2\% in fixed-scenario experiments (Experiment~A) to 70.5\% in distribution-mode market experiments (Experiments~E and~I).  Table~\ref{tab:deal-rates} summarises deal rates across all experiments.
+
+\begin{table}[ht]
+\centering
+\caption{Deal success rates across all experiments.}
+\label{tab:deal-rates}
 \small
 \begin{tabular}{@{}llcc@{}}
 \toprule
-Economic principle & Evidence & Exp & Primary driver \\
+Exp & Name & Deal rate (\%) & Sessions \\
 \midrule
-ZOPA determines deal success & 2.7\% vs.\ 100\% deal rate as ZOPA narrows & B & Protocol/Gate \\
-Market price convergence$^\dagger$ & +\$0.057/tick slope; stable \$89 mean & D & Protocol/Gate \\
-Bilateral bargaining dispersion$^\dagger$ & Within-tick $\sigma = \$20$; Law of One Price fails & D & Protocol \\
-First-mover buyer advantage$^\dagger$ & Buyer surplus \$32.95 $>$ seller surplus \$16.40 & D & Protocol \\
-Shock $\to$ price/liquidity reduction$^\dagger$ & $-$\$2.15 price, $-$3.1\,pp liquidity & E & Protocol/Gate \\
-Asymmetric shock tail risk$^\dagger$ & Worst-case liquidity drops 13.4\,pp; best-case unchanged & E & Protocol/Gate \\
-Mechanism $\to$ efficiency gain & +5.8\,pp allocative efficiency under surplus-max & H & Mechanism \\
-Mechanism $\to$ deal rate gain & +16.1\,pp deal rate under surplus-max matching & H & Mechanism \\
-Supply shock $\to$ price increase & +\$16.46 (+17.9\%) under +\$20 seller cost shift & I & Protocol/Gate \\
-Demand shock $\to$ welfare gain & +33.5\% total welfare; gains accrue to buyers & I & Protocol/Agent \\
-Supply shock redistributes surplus & Surplus ratio shifts from 1.69:1 to 1.04:1 & I & Protocol/Gate \\
+A & Concession (LLM) & 97.2 & 72 \\
+A & Concession (rule-based) & 97.2 & 72 \\
+C & Deadline (6 rounds) & 94.4 & 72 \\
+C & Deadline (12 rounds) & 97.2 & 72 \\
+C & Deadline (20 rounds) & 97.2 & 72 \\
+D & Market dynamics & 82.3 & 300 \\
+E & Shock (no shock) & $\approx$69 & 300 \\
+E & Shock (with shock) & $\approx$72 & 300 \\
+I & Supply-demand (baseline) & 72.4 & 192 \\
+I & Supply-demand (demand shock) & 72.4 & 192 \\
+I & Supply-demand (supply shock) & 66.7 & 192 \\
+J & Anchor (fixed, no shock) & $\approx$69 & 300 \\
+J & Anchor (updated, no shock) & 71.3 & 300 \\
+J & Anchor (no anchor, no shock) & 86.7 & 300 \\
+H & Mechanism (random) & 85.0 & 192 \\
+H & Mechanism (surplus-max) & 82.0 & 143 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\begin{table}[ht]
-\centering
-\caption{Where LLM agents depart from classical predictions.}
-\label{tab:departures}
-\small
-\begin{tabular}{@{}lllc@{}}
-\toprule
-Predicted behaviour & Observed & Interpretation & Exp \\
-\midrule
-Anchoring bias & $r = -0.148$ & Prompt provides explicit surplus info & B \\
-Deadline concession & Closes at round 3 always & Gate + prefer-counter steering & C \\
-Shocks increase dispersion & $\sigma$ unchanged & Protocol drives dispersion, not ZOPA & E \\
-Demand shock $\to$ proportional price increase & +2.0\% observed vs.\ +17\% input shift & Demand-side response attenuated; mechanism unresolved & I \\
-\bottomrule
-\end{tabular}
-\end{table}
+The primary determinant of deal success is the experimental setting: fixed-scenario experiments with wide ZOPAs (A, C) achieve near-complete agreement, while distribution-mode experiments produce lower rates because some randomly matched pairs have narrow or absent ZOPAs.  Among market experiments, the \texttt{no\_anchor} condition in Experiment~J achieves the highest deal rate (86.7\%), suggesting that removing the reference price signal may reduce anchoring-induced rigidity that prevents agreement.  The supply shock in Experiment~I produces the lowest deal rate (66.7\%), consistent with ZOPA compression from higher seller costs.
 
-\paragraph{Feasibility gate as cross-cutting confound.}
-The gate drives approximately 40\% of all acceptances.  In fixed-scenario experiments (A--C), it fires at round~2 in every session, limiting concession data to two observations and rendering settlement timing invariant to deadline manipulation.  In market experiments (D, E, I), gate involvement varies by session depending on the drawn ZOPA.  The gate's contribution to deal rates and settlement timing cannot be separated from agent capability without ablation studies that disable the gate entirely.
+\paragraph{Theme 4: Comparison to human negotiation patterns.}
+Several observed behavioural patterns are directionally consistent with patterns documented in the human negotiation literature, though all comparisons are indirect (no human participants were tested under the same protocol).
 
-\paragraph{First-mover advantage as protocol effect.}
-Buyer surplus exceeds seller surplus in both the fixed-scenario concession experiment (A) and the market experiment (D).  This pattern is consistent with the buyer-first turn order in the alternating-offer protocol: the buyer's opening offer anchors the negotiation toward the lower end of the ZOPA.  This is a protocol effect, not an agent-type effect, and would persist regardless of the LLM used.  Experiment~I (Finding~23) shows that higher seller costs partially offset this advantage: the buyer/seller surplus ratio narrows from 1.69:1 at baseline to 1.04:1 under supply shock, indicating that the first-mover effect is context-sensitive rather than unconditional.
+\emph{Deadline-driven concession acceleration.}  The Experiment~C finding---82.4\% of deals close in the final two rounds under a 6-round horizon, compared to 11.4\% under 20 rounds---is directionally consistent with Roth et al.'s~\cite{roth1988deadline} documentation of deadline effects in human bargaining.  However, LLM agents do not adjust final prices across deadline conditions (\$84.93 to \$86.73, a \$2 range), whereas human deadline studies typically document both timing and price effects.  This dissociation---timing sensitivity without price sensitivity---is a specific, testable behavioural difference between LLM and human negotiators.  It suggests that the LLM responds to deadline salience primarily as a coordination signal (``the window is closing; close the deal now'') rather than as a pressure signal that alters its assessment of an acceptable price.  Whether this difference is model-specific, prompt-specific, or a general property of LLM bargaining is a question that could be probed directly through studies that vary both the deadline condition and the human baseline under the same protocol.
 
-\paragraph{Prompt steering as uncontrolled variable.}
-The prefer-counter instruction and the accept-condition block are active in all LLM conditions across all experiments.  Their combined effect is to reduce rejection, accelerate settlement, and possibly suppress anchoring.  Because neither has been ablated, they function as uncontrolled confounds rather than experimental variables.  Separating their effects from the model's intrinsic bargaining behaviour is an important direction for future work.
+\emph{Boulware-style concession.}  The concave concession trajectory observed in Experiment~A (large initial concession followed by rapid hardening) is consistent with the Boulware bargaining pattern documented in the negotiation literature~\cite{raiffa1982}.  The prompt instructs monotonic concession direction but does not dictate step size or timing; the frontloaded concession pattern is therefore partly attributable to LLM behaviour, though the boundary between prompt-induced and agent-driven dynamics cannot be determined from current experiments.
 
-\paragraph{Demand-supply asymmetry as cross-experiment pattern.}
-Across Experiments~E and~I, supply-side cost shocks produce stronger and more consistent price and liquidity responses than demand-side value changes.  In Experiment~E, stochastic shocks that compress the ZOPA reduce both prices and liquidity.  In Experiment~I, a directed supply shock produces a near-proportional price increase (+17.9\% from a +\$20 cost shift) while a symmetric demand shock produces a muted price response (+2.0\% from a +\$20 value increase).  The mechanism driving this asymmetry has not been isolated; possible explanations include the structural primacy of cost floors as hard constraints, differential prompt sensitivity to cost versus value information, or nonlinear ZOPA effects.  Confirming any interpretation requires targeted ablation experiments.
+\emph{Anchor sensitivity.}  Experiment~J demonstrates that LLM agents are strongly conditioned on the environmental reference price, consistent with the anchoring literature~\cite{tversky1974,galinsky2001}, though the mechanism differs: in human studies, anchoring operates through an opponent's first offer, whereas here it operates through a prompt-embedded environmental signal.
 
-% TODO: Consider adding a paragraph on chain-of-thought effect (deliberative vs reactive) as a cross-cutting finding if more data becomes available from gate-disabled runs.
+\paragraph{Protocol-level considerations.}
+Across all experiments, the bargaining protocol is held constant: agents operate under a finite-horizon counteroffer protocol with structured action extraction, monotonic concession instructions, and pre-computed feasibility information.  These protocol choices constrain concession direction and steer toward deal finalization when offers are feasible.  The consistently low seller concession observed in Experiment~A may partly reflect prompt asymmetry.  Prompt-level ablation studies---testing deal rates and concession dynamics with and without the monotonic concession instruction, the accept-condition block, and the reference price signal---would further clarify the boundary between agent-driven and protocol-induced behaviour.

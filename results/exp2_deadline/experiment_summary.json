@@ -1,0 +1,35 @@
+{
+  "experiment": "deadline",
+  "max_rounds_conditions": [
+    6,
+    12,
+    20
+  ],
+  "seeds": [
+    42,
+    123,
+    456
+  ],
+  "total_sessions": 216,
+  "condition_stats": {
+    "6": {
+      "total": 72,
+      "deals": 68,
+      "success_rate": 0.9444,
+      "last_2_round_share": 0.8235
+    },
+    "12": {
+      "total": 72,
+      "deals": 70,
+      "success_rate": 0.9722,
+      "last_2_round_share": 0.1571
+    },
+    "20": {
+      "total": 72,
+      "deals": 70,
+      "success_rate": 0.9722,
+      "last_2_round_share": 0.1143
+    }
+  },
+  "git_hash": "59407e6"
+}

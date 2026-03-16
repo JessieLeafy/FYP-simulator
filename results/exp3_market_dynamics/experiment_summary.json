@@ -1,0 +1,13 @@
+{
+  "experiment": "market_dynamics",
+  "seeds": [
+    42,
+    123,
+    456
+  ],
+  "total_ticks": 30,
+  "price_trend_slope": -0.1309,
+  "price_trend_intercept": 73.57,
+  "avg_liquidity": 0.8233,
+  "git_hash": "59407e6"
+}

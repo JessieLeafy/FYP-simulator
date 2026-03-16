@@ -1,0 +1,14 @@
+{
+  "experiment": "shock_response",
+  "conditions": [
+    "no_shock",
+    "with_shock"
+  ],
+  "seeds": [
+    42,
+    123,
+    456
+  ],
+  "total_tick_records": 60,
+  "git_hash": "59407e6"
+}

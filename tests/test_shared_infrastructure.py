@@ -1,19 +1,16 @@
-"""Tests for shared infrastructure added for Experiments F, G, H.
+"""Tests for shared infrastructure.
 
 Covers:
 - Feasibility gate toggle (gate_enabled flag)
-- New matchers (SurplusMaxMatcher, SortedMatcher, RoundRobinMatcher)
+- Matchers (SurplusMaxMatcher, SortedMatcher, RoundRobinMatcher)
 - Matcher factory in MarketSimulator
 - Communication strategy in prompt builders
-- ReputationStore
 - Allocative efficiency and Gini metrics
-- build_reputation_context prompt helper
 """
 from __future__ import annotations
 
 import pytest
 
-from src.agents.memory_agent import MemoryStore, ReputationStore
 from src.core.config import NegotiationConfig, PromptConfig, SimulationConfig
 from src.core.rng import SeededRNG
 from src.core.types import (
@@ -33,7 +30,6 @@ from src.llm.prompts import (
     _COMMUNICATION_STRATEGIES,
     build_deliberative_prompt,
     build_reactive_prompt,
-    build_reputation_context,
 )
 from src.market.matcher import (
     RandomMatcher,
@@ -354,83 +350,6 @@ class TestCommunicationStrategy:
 
 
 # ═══════════════════════════════════════════════════════════════════════
-#  Reputation tests
-# ═══════════════════════════════════════════════════════════════════════
-
-class TestReputationStore:
-
-    def test_empty_reputation(self):
-        store = ReputationStore()
-        assert store.get_reputation("unknown") is None
-        assert store.known_opponents == []
-
-    def test_single_interaction(self):
-        store = ReputationStore()
-        store.record("seller_0", {
-            "deal_made": True, "deal_price": 95.0, "rounds": 3,
-        })
-        rep = store.get_reputation("seller_0")
-        assert rep is not None
-        assert rep["interactions"] == 1
-        assert rep["deal_rate"] == 1.0
-        assert rep["avg_deal_price"] == 95.0
-
-    def test_multiple_interactions(self):
-        store = ReputationStore()
-        store.record("s1", {"deal_made": True, "deal_price": 90.0, "rounds": 2})
-        store.record("s1", {"deal_made": True, "deal_price": 100.0, "rounds": 4})
-        store.record("s1", {"deal_made": False, "deal_price": None, "rounds": 10})
-
-        rep = store.get_reputation("s1")
-        assert rep["interactions"] == 3
-        assert rep["deal_rate"] == pytest.approx(0.67, abs=0.01)
-        assert rep["avg_deal_price"] == 95.0  # (90+100)/2
-        assert rep["style"] == "moderate"
-
-    def test_known_opponents(self):
-        store = ReputationStore()
-        store.record("s1", {"deal_made": True, "deal_price": 90.0, "rounds": 2})
-        store.record("s2", {"deal_made": False, "deal_price": None, "rounds": 10})
-        assert set(store.known_opponents) == {"s1", "s2"}
-
-    def test_cooperative_style(self):
-        store = ReputationStore()
-        for _ in range(5):
-            store.record("s1", {"deal_made": True, "deal_price": 90.0, "rounds": 2})
-        rep = store.get_reputation("s1")
-        assert rep["style"] == "cooperative"
-
-    def test_unreliable_style(self):
-        store = ReputationStore()
-        for _ in range(5):
-            store.record("s1", {"deal_made": False, "deal_price": None, "rounds": 10})
-        rep = store.get_reputation("s1")
-        assert rep["style"] == "unreliable"
-
-
-class TestBuildReputationContext:
-
-    def test_empty_reputation(self):
-        assert build_reputation_context({}) == ""
-
-    def test_formats_reputation(self):
-        rep = {
-            "opponent_id": "seller_42",
-            "interactions": 5,
-            "deal_rate": 0.8,
-            "avg_deal_price": 95.0,
-            "avg_rounds": 3.2,
-            "style": "cooperative",
-        }
-        text = build_reputation_context(rep)
-        assert "seller_42" in text
-        assert "80%" in text
-        assert "$95.00" in text
-        assert "cooperative" in text
-        assert "OPPONENT HISTORY" in text
-
-
-# ═══════════════════════════════════════════════════════════════════════
 #  Allocative efficiency + Gini tests
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -491,16 +410,3 @@ class TestSurplusGini:
         assert 0 < gini < 0.5
 
 
-# ═══════════════════════════════════════════════════════════════════════
-#  Per-agent memory config test
-# ═══════════════════════════════════════════════════════════════════════
-
-class TestPerAgentMemoryConfig:
-
-    def test_default_is_shared(self):
-        cfg = SimulationConfig()
-        assert cfg.memory_per_agent is False
-
-    def test_can_enable(self):
-        cfg = SimulationConfig(memory_per_agent=True)
-        assert cfg.memory_per_agent is True

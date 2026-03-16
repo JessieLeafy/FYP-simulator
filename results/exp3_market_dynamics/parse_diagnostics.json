@@ -1,0 +1,23 @@
+{
+  "files_processed": 3,
+  "total_turns": 2222,
+  "total_llm_turns": 2198,
+  "total_sessions": 300,
+  "parse_success_rate": 1.0,
+  "retry_rate": 0.0,
+  "reject_from_parse_count": 0,
+  "reject_from_parse_rate": 0.0,
+  "invalid_action_rate": 0.0,
+  "override_count": 0,
+  "timeout_count": 29,
+  "timeout_rate": 0.0967,
+  "deal_count": 247,
+  "deal_rate": 0.8233,
+  "accept_price_conflict_count": 0,
+  "mean_response_length": 282.1,
+  "acceptance_sources": {
+    "llm_accept": 247,
+    "override_accept": 0,
+    "total_accepts": 247
+  }
+}

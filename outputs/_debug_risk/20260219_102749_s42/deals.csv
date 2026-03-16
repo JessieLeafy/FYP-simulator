@@ -1,6 +1,0 @@
-time_step,item_id,item_name,buyer_id,seller_id,deal_made,deal_price,termination_reason,rounds_taken,buyer_value,seller_cost,buyer_surplus,seller_surplus
-0,item_001,Gadget B,buyer_t0_002,seller_t0_004,False,,rejected,2,120.0,80.0,0.0,0.0
-0,item_000,Widget A,buyer_t0_000,seller_t0_000,False,,rejected,2,120.0,80.0,0.0,0.0
-0,item_004,Gizmo E,buyer_t0_004,seller_t0_001,False,,rejected,2,120.0,80.0,0.0,0.0
-0,item_000,Widget A,buyer_t0_001,seller_t0_003,False,,rejected,2,120.0,80.0,0.0,0.0
-0,item_000,Widget A,buyer_t0_003,seller_t0_002,False,,rejected,2,120.0,80.0,0.0,0.0
