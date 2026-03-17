@@ -1,0 +1,81 @@
+# Experiment 6 Extension: Supply-Demand × Anchor Mode (2×3 factorial)
+#
+# Research question: Does anchor structure moderate the pass-through of
+# fundamental supply/demand shifts to transaction prices?
+#
+# Factors:
+#   anchor_mode:  fixed | no_anchor
+#   condition:    baseline | demand_shift | supply_shift
+#
+# Design changes vs original Exp 6:
+#   - Tighter ZOPA (45 vs 65) so shifts are a larger fraction of bargaining range
+#   - Narrower within-condition ranges (40/30 vs 80/50) to reduce noise
+#   - Larger shift magnitude (+30 vs +20), now 67% of baseline ZOPA width
+#   - Lower seller margins (3-12% vs 5-25%) so cost shocks are harder to absorb
+#   - Non-binding buyer budgets (always above buyer_value_max)
+#   - Reference prices fixed at 100-140 across all conditions
+#
+# Conditions (overridden per cell in experiments.py):
+#   baseline:      buyer_value 105-145, seller_cost 65-95
+#   demand_shift:  buyer_value 135-175 (+30), seller_cost 65-95
+#   supply_shift:  buyer_value 105-145, seller_cost 95-125 (+30)
+#
+# Anchor modes (set per cell in experiments.py):
+#   fixed:     agents see "market reference price: $X" from item_ref_price range
+#   no_anchor: agents see no reference price (item.reference_price = 0)
+
+agent_type: llm_free_language
+mode: market
+steps: 8
+buyers_per_step: 8
+sellers_per_step: 8
+seed: 42
+scenario_mode: distribution
+
+llm:
+  backend: huggingface
+  model: Qwen/Qwen2.5-14B-Instruct
+  device: auto
+  temperature: 0.2
+  max_tokens: 512
+  timeout_sec: 60.0
+  max_retries: 3
+
+# Baseline market parameters (overridden per condition in experiments.py).
+# coherent_sampling OFF: experiment tests absolute distribution shifts.
+market:
+  coherent_sampling: false
+  # Reference price range — same across all conditions.
+  # Under fixed anchor, this is shown to agents as "market reference price".
+  # Under no_anchor, reference_price is zeroed out and agents see no anchor.
+  item_ref_price_min: 100.0
+  item_ref_price_max: 140.0
+  # Baseline buyer/seller distributions (tighter than original Exp 6)
+  buyer_value_min: 105.0
+  buyer_value_max: 145.0
+  seller_cost_min: 65.0
+  seller_cost_max: 95.0
+  # Non-binding budgets: always above buyer_value_max
+  buyer_budget_min: 160.0
+  buyer_budget_max: 220.0
+  # Low seller margins: cost shocks are harder to absorb
+  seller_margin_min: 0.03
+  seller_margin_max: 0.12
+  buyer_patience_min: 3
+  buyer_patience_max: 8
+  seller_patience_min: 3
+  seller_patience_max: 8
+  num_item_types: 5
+
+negotiation:
+  max_rounds: 10
+  min_price: 1.0
+  max_price: 500.0
+  gate_enabled: false
+
+prompt:
+  include_deadline_salience: true
+  include_objective_equations: true
+
+shock:
+  enabled: false

@@ -876,6 +876,187 @@ def run_shock_anchor_ablation(
 
 
 # ═══════════════════════════════════════════════════════════════════════
+#  I-ext) Supply-Demand × Anchor Mode (2×3 factorial)
+# ═══════════════════════════════════════════════════════════════════════
+
+def run_supply_demand_anchor(
+    base_cfg: SimulationConfig,
+    output_base: str = "outputs/experiments",
+    seeds: list[int] | None = None,
+    anchor_modes: list[str] | None = None,
+    on_session=None,
+    backend=None,
+) -> str | tuple[str, Any]:
+    """Supply-demand shift × anchor-mode factorial experiment.
+
+    Tests whether anchor structure moderates pass-through from fundamental
+    supply/demand shifts to transaction prices.
+
+    Design: 2 (anchor_mode: fixed, no_anchor) × 3 (condition: baseline,
+    demand_shift, supply_shift) factorial, with tighter ZOPA, narrower
+    within-condition dispersion, and larger shift magnitude (+30) than the
+    original Experiment 6.
+
+    Returns:
+        Path to experiment run directory.
+    """
+    if seeds is None:
+        seeds = [42]
+    if anchor_modes is None:
+        anchor_modes = ["fixed", "no_anchor"]
+
+    run_dir = _make_run_dir(output_base, "supply_demand_anchor")
+
+    # Condition overrides: +30 shift (67% of baseline ZOPA width)
+    conditions = {
+        "baseline": {
+            "market.buyer_value_min": 105.0,
+            "market.buyer_value_max": 145.0,
+            "market.seller_cost_min": 65.0,
+            "market.seller_cost_max": 95.0,
+            "market.buyer_budget_min": 160.0,
+            "market.buyer_budget_max": 220.0,
+        },
+        "demand_shift": {
+            "market.buyer_value_min": 135.0,
+            "market.buyer_value_max": 175.0,
+            "market.seller_cost_min": 65.0,
+            "market.seller_cost_max": 95.0,
+            "market.buyer_budget_min": 190.0,
+            "market.buyer_budget_max": 250.0,
+        },
+        "supply_shift": {
+            "market.buyer_value_min": 105.0,
+            "market.buyer_value_max": 145.0,
+            "market.seller_cost_min": 95.0,
+            "market.seller_cost_max": 125.0,
+            "market.buyer_budget_min": 160.0,
+            "market.buyer_budget_max": 220.0,
+        },
+    }
+
+    all_condition_data: list[dict[str, Any]] = []
+    shared_backend = backend
+
+    for anchor_mode in anchor_modes:
+        for cond_name, overrides in conditions.items():
+            avg_buyer_value = (overrides["market.buyer_value_min"] +
+                               overrides["market.buyer_value_max"]) / 2
+            avg_seller_cost = (overrides["market.seller_cost_min"] +
+                               overrides["market.seller_cost_max"]) / 2
+
+            for seed in seeds:
+                cfg = copy.deepcopy(base_cfg)
+                cfg.seed = seed
+                cfg.mode = "market"
+                cfg.market.anchor_mode = anchor_mode
+                cfg.output_dir = os.path.join(run_dir, "runs")
+
+                # Apply market distribution overrides
+                for key, val in overrides.items():
+                    section, field = key.split(".", 1)
+                    setattr(getattr(cfg, section), field, val)
+
+                sim = _run_simulation(cfg, on_session=on_session,
+                                      backend=shared_backend)
+                shared_backend = sim._backend
+
+                # Aggregate tick stats
+                if sim.tick_stats:
+                    prices = [ts.mean_price for ts in sim.tick_stats
+                              if ts.mean_price > 0]
+                    liquidity_vals = [ts.liquidity for ts in sim.tick_stats]
+                    buyer_surp = [ts.buyer_surplus_mean for ts in sim.tick_stats
+                                  if ts.deals_made > 0]
+                    seller_surp = [ts.seller_surplus_mean for ts in sim.tick_stats
+                                   if ts.deals_made > 0]
+                    price_stds = [ts.price_std for ts in sim.tick_stats
+                                  if ts.price_std > 0]
+
+                    mean_price = (sum(prices) / len(prices)) if prices else 0
+                    avg_liquidity = (sum(liquidity_vals) / len(liquidity_vals)
+                                     if liquidity_vals else 0)
+                    avg_buyer_surplus = (sum(buyer_surp) / len(buyer_surp)
+                                         if buyer_surp else 0)
+                    avg_seller_surplus = (sum(seller_surp) / len(seller_surp)
+                                          if seller_surp else 0)
+                    total_welfare = avg_buyer_surplus + avg_seller_surplus
+                    avg_price_std = (sum(price_stds) / len(price_stds)
+                                     if price_stds else 0)
+
+                    all_condition_data.append({
+                        "anchor_mode": anchor_mode,
+                        "condition": cond_name,
+                        "seed": seed,
+                        "avg_buyer_value": round(avg_buyer_value, 2),
+                        "avg_seller_cost": round(avg_seller_cost, 2),
+                        "mean_price": round(mean_price, 2),
+                        "liquidity": round(avg_liquidity, 4),
+                        "total_welfare": round(total_welfare, 2),
+                        "buyer_surplus": round(avg_buyer_surplus, 2),
+                        "seller_surplus": round(avg_seller_surplus, 2),
+                        "price_dispersion": round(avg_price_std, 2),
+                    })
+
+    # Write results CSV
+    if all_condition_data:
+        import csv
+        fields = list(all_condition_data[0].keys())
+        path = os.path.join(run_dir, "supply_demand_anchor_results.csv")
+        with open(path, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(all_condition_data)
+
+    # Compute summary statistics per anchor_mode × condition cell
+    condition_summaries: dict[str, dict[str, Any]] = {}
+    for anchor_mode in anchor_modes:
+        for cond_name in conditions:
+            cell_key = f"{anchor_mode}_{cond_name}"
+            cond_rows = [
+                r for r in all_condition_data
+                if r["anchor_mode"] == anchor_mode and r["condition"] == cond_name
+            ]
+            if cond_rows:
+                condition_summaries[cell_key] = {
+                    "anchor_mode": anchor_mode,
+                    "condition": cond_name,
+                    "avg_buyer_value": cond_rows[0]["avg_buyer_value"],
+                    "avg_seller_cost": cond_rows[0]["avg_seller_cost"],
+                    "mean_price": round(
+                        sum(r["mean_price"] for r in cond_rows) / len(cond_rows), 2
+                    ),
+                    "liquidity": round(
+                        sum(r["liquidity"] for r in cond_rows) / len(cond_rows), 4
+                    ),
+                    "total_welfare": round(
+                        sum(r["total_welfare"] for r in cond_rows) / len(cond_rows), 2
+                    ),
+                    "buyer_surplus": round(
+                        sum(r["buyer_surplus"] for r in cond_rows) / len(cond_rows), 2
+                    ),
+                    "seller_surplus": round(
+                        sum(r["seller_surplus"] for r in cond_rows) / len(cond_rows), 2
+                    ),
+                    "price_dispersion": round(
+                        sum(r["price_dispersion"] for r in cond_rows) / len(cond_rows), 2
+                    ),
+                }
+
+    summary = {
+        "experiment": "supply_demand_anchor",
+        "anchor_modes": anchor_modes,
+        "conditions": list(conditions.keys()),
+        "seeds": seeds,
+        "total_condition_seed_runs": len(all_condition_data),
+        "condition_summaries": condition_summaries,
+        "git_hash": _git_hash(),
+    }
+    write_experiment_summary(summary, run_dir)
+    return run_dir, shared_backend
+
+
+# ═══════════════════════════════════════════════════════════════════════
 #  Dispatcher
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -888,6 +1069,7 @@ EXPERIMENT_REGISTRY = {
     "mechanism": run_mechanism,
     "supply_demand": run_supply_demand,
     "shock_anchor_ablation": run_shock_anchor_ablation,
+    "supply_demand_anchor": run_supply_demand_anchor,
 }
 
 

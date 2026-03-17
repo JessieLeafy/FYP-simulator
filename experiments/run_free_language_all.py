@@ -41,6 +41,7 @@ from experiments.experiments import (  # noqa: E402
     run_shock_response,
     run_mechanism,
     run_supply_demand,
+    run_supply_demand_anchor,
 )
 from src.evaluation.parse_diagnostics import (  # noqa: E402
     compute_diagnostics_for_experiment,
@@ -81,6 +82,11 @@ EXPERIMENT_DEFS = {
         "name": "Supply-Demand Structure",
         "config": "experiments/configs/exp_supply_demand.yaml",
         "priority": 5,
+    },
+    "I2": {
+        "name": "Supply-Demand × Anchor",
+        "config": "experiments/configs/exp_supply_demand_anchor.yaml",
+        "priority": 8,
     },
     "D": {
         "name": "Market Dynamics",
@@ -229,6 +235,15 @@ def run_exp_i(cfg, output_base, seeds, on_session, backend=None):
                               on_session=on_session, backend=backend)
 
 
+def run_exp_i2(cfg, output_base, seeds, on_session, backend=None):
+    """I2: Supply-Demand × Anchor — 2×3 factorial."""
+    return run_supply_demand_anchor(
+        cfg, output_base=output_base, seeds=seeds,
+        anchor_modes=["fixed", "no_anchor"],
+        on_session=on_session, backend=backend,
+    )
+
+
 EXP_RUNNERS = {
     "A": run_exp_a,
     "B": run_exp_b,
@@ -237,6 +252,7 @@ EXP_RUNNERS = {
     "E": run_exp_e,
     "H": run_exp_h,
     "I": run_exp_i,
+    "I2": run_exp_i2,
 }
 
 
@@ -262,6 +278,7 @@ def estimate_sessions(key: str, seeds: list[int], cfg=None) -> int:
         "E": 2 * n_seeds * 10 * 10,      #  600  (2 shock conds)
         "H": 2 * n_seeds * 8 * 8,        #  384  (2 matchers x 8 ticks x 8 pairs)
         "I": 3 * n_seeds * 8 * 8,        #  576  (3 supply/demand conds)
+        "I2": 6 * n_seeds * 8 * 8,       # 1152  (2 anchor × 3 conds × 8 ticks × 8 pairs)
     }
     return estimates.get(key, 100)
 
@@ -311,7 +328,7 @@ def main():
     # Estimate total sessions
     if args.pilot:
         # Pre-compute from pilot overrides
-        n_conds = {"A": 2, "B": 3, "C": 3, "D": 1, "E": 2, "H": 2, "I": 3}
+        n_conds = {"A": 2, "B": 3, "C": 3, "D": 1, "E": 2, "H": 2, "I": 3, "I2": 6}
         total_est = 0
         for k in keys:
             spec = EXPERIMENT_DEFS[k]
